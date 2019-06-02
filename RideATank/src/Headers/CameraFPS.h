@@ -22,7 +22,7 @@ enum Camera_Movement {
 const float YAW = -90.0f;
 const float PITCH = 0.0f;
 const float SPEED = 3.0f;
-const float SENSITIVTY = 0.25f;
+const float SENSITIVTY = 0.20f;
 const float ZOOM = 45.0f;
 
 class CameraFPS {
@@ -71,6 +71,7 @@ public:
 
 	void ProcessKeyboard(Camera_Movement direction, float deltaTime) {
 		float velocity = this->MovementSpeed * deltaTime;
+		float y0 = this->Position.y;
 		if (direction == C_FORWARD)
 			this->Position += this->Front * velocity;
 		if (direction == C_BACKWARD)
@@ -79,6 +80,7 @@ public:
 			this->Position -= this->Right * velocity;
 		if (direction == C_RIGHT)
 			this->Position += this->Right * velocity;
+		this->Position.y = y0;
 	}
 
 	void ProcessMouseMovement(float xoffset, float yoffset,

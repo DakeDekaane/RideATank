@@ -4,6 +4,7 @@
 //std includes
 #include <string>
 #include <iostream>
+#include <cstdlib>
 
 //glfw include
 #include <GLFW/glfw3.h>
@@ -17,20 +18,35 @@
 #include "Headers/Texture.h"
 
 // Camera include
-#include "Headers/CameraFPS.h"
+//#include "Headers/CameraFPS.h"
 
 #include "Headers/Model.h"
 
 // Sphere include
 #include "Headers/Sphere.h"
 
+//Cubemap
+#include "Headers/CubemapTexture.h"
+
+//Collisions
+//#include "Headers/collision.h"
+
 // OpenAL include
 #include <AL/alut.h>
 
 Shader lightingShader;
 Shader lampShader;
+Shader cubemapShader;
+Shader envCubeShader;
 
+Model floor_model;
 Model player_model;
+Model enemy_model;
+Model building1_model;
+Model building2_model;
+Model building3_model;
+
+CubemapTexture* cubeMaptexture = new CubemapTexture("../Textures", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png");
 
 Sphere sp(1.5, 50, 50, MODEL_MODE::VERTEX_COLOR);
 Sphere sp2(1.5, 50, 50, MODEL_MODE::VERTEX_LIGHT_TEXTURE);
@@ -43,6 +59,12 @@ int screenHeight;
 GLFWwindow * window;
 InputManager inputManager;
 double deltaTime;
+
+Position player_pos = { 0.0f, 2.0f, 0.0f };
+
+glm::vec3 skyCameraPos = { 10.0f,20.0f,10.0f };
+glm::vec3 skyCameraFront = { 0.0f,-1.0f,0.0f };
+glm::vec3 skyCameraUp = { 1.0f,0.0f,0.0f };
 
 // Se definen todos las funciones.
 void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes);
@@ -92,7 +114,9 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetCursorPosCallback(window, mouseCallback);
 	glfwSetMouseButtonCallback(window, mouseButtonCallback);
-	glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+	//glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// Init glew
 	glewExperimental = GL_TRUE;
@@ -115,11 +139,20 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	sp2.init();
 	sp2.load();
 
-	player_model.loadModel("../models/tanks/tank-red.obj");
+	floor_model.loadModel("../models/buildings/floor.obj");
+	player_model.loadModel("../models/tanks/tank-green.obj");
+	enemy_model.loadModel("../models/tanks/tank-red.obj");
+	building1_model.loadModel("../models/buildings/building1.obj");
+	building2_model.loadModel("../models/buildings/building2.obj");
+	building3_model.loadModel("../models/buildings/building3.obj");
+	
 
 	lightingShader.initialize("../Shaders/loadModelLighting.vs", "../Shaders/loadModelLightingDirectional.fs");
 	//lampShader.initialize("../Shaders/lampShader.vs", "../Shaders/lampShader.fs");
+	cubemapShader.initialize("../Shaders/cubemapTexture.vs", "../Shaders/cubemapTexture.fs");
+	envCubeShader.initialize("../Shaders/envRefCubemapTexture.vs", "../Shaders/envRefCubemapTexture.fs");
 
+	cubeMaptexture->Load();
 }
 
 void destroyWindow() {
@@ -130,7 +163,9 @@ void destroyWindow() {
 void destroy() {
 	destroyWindow();
 	lightingShader.destroy();
-	lampShader.destroy();
+	//lampShader.destroy();
+	cubemapShader.destroy();
+	envCubeShader.destroy();
 }
 
 void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes) {
@@ -163,6 +198,7 @@ bool processInput(bool continueApplication) {
 	TimeManager::Instance().CalculateFrameRate(false);
 	deltaTime = TimeManager::Instance().DeltaTime;
 	inputManager.do_movement(deltaTime);
+	inputManager.swapCamera();
 	glfwPollEvents();
 	return continueApplication;
 }
@@ -174,6 +210,9 @@ void applicationLoop() {
 	glm::vec3 lightDir(0.2f, -1.0f, 0.2f);
 	double lastTime = TimeManager::Instance().GetTime();
 
+	AABB aabb1 = getAABB(player_model.getMeshes());
+	AABB aabb2 = getAABB(enemy_model.getMeshes());
+
 	while (psi) {
 		psi = processInput(true);
 		// This is new, need clear depth buffer bit
@@ -182,8 +221,14 @@ void applicationLoop() {
 		lightingShader.turnOn();
 
 		GLint viewPosLoc = lightingShader.getUniformLocation("viewPos");
-		glUniform3f(viewPosLoc, inputManager.getCameraFPS()->Position.x, inputManager.getCameraFPS()->Position.y,
-			inputManager.getCameraFPS()->Position.z);
+		if (inputManager.getActiveCamera() == PLAYER) {
+			glUniform3f(viewPosLoc, inputManager.getCameraFPS()->Position.x, inputManager.getCameraFPS()->Position.y,
+				inputManager.getCameraFPS()->Position.z);
+		}
+		else if (inputManager.getActiveCamera() == SKY) {
+			glUniform3f(viewPosLoc, skyCameraPos.x, skyCameraPos.y, skyCameraPos.z);
+		}
+		
 
 		// Set material properties
 		GLint matDiffuseLoc = lightingShader.getUniformLocation("materialDiff");
@@ -200,13 +245,19 @@ void applicationLoop() {
 		//GLint lightPosLoc = lightingShader.getUniformLocation("light.position");
 		GLint lightDirectionLoc = lightingShader.getUniformLocation("light.direction");
 		glUniform3f(lightAmbientLoc, 0.5f, 0.5f, 0.5f);
-		glUniform3f(lightDiffuseLoc, 1.0f, 1.0f, 1.0f); // Let's darken the light a bit to fit the scene
+		glUniform3f(lightDiffuseLoc, 0.8f, 0.8f, 0.8f); // Let's darken the light a bit to fit the scene
 		glUniform3f(lightSpecularLoc, 1.0f, 1.0f, 1.0f);
 		//glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
 		glUniform3f(lightDirectionLoc, lightDir.x, lightDir.y, lightDir.z);
 
 		// Create camera transformations
-		glm::mat4 view = inputManager.getCameraFPS()->GetViewMatrix();
+		glm::mat4 view = glm::mat4(1.0f);
+		if (inputManager.getActiveCamera() == PLAYER) {
+			view = inputManager.getCameraFPS()->GetViewMatrix();
+		}
+		else if (inputManager.getActiveCamera() == SKY) {
+			view = glm::lookAt(skyCameraPos, skyCameraFront, skyCameraUp);
+		}
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
 		// Get the uniform locations
 		GLint modelLoc = lightingShader.getUniformLocation("model");
@@ -218,14 +269,100 @@ void applicationLoop() {
 
 		GLfloat timeValue = TimeManager::Instance().GetTime() - lastTime;
 
-		// Draw the loaded model
-		glm::mat4 model1 = glm::mat4(1.0f);
-		model1 = glm::translate(model1, glm::vec3(0.0f, 0.0f, 0.0f));
-		model1 = glm::scale(model1, glm::vec3(1.0f, 1.0f, 1.0f));
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model1));
+		// Draw the floor model
+		glm::mat4 model0 = glm::mat4(1.0f);
+		model0 = glm::translate(model0, glm::vec3(0.0f, 0.0f, 0.0f));
+		model0 = glm::scale(model0, glm::vec3(50.0f, 0.01f, 50.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model0));
+		floor_model.render(&lightingShader);
 
+		// Draw the player model
+		glm::mat4 model1 = glm::mat4(1.0f);
+		model1 = glm::translate(model1, glm::vec3(inputManager.getCameraFPS()->Position.x, inputManager.getCameraFPS()->Position.y, inputManager.getCameraFPS()->Position.z));
+		model1 = glm::scale(model1, glm::vec3(1.0f, 1.0f, 1.0f));
+		model1 = glm::rotate(model1, glm::radians(-inputManager.getCameraFPS()->Yaw + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model1));
 		player_model.render(&lightingShader);
+
+		// Draw the enemy model
+		glm::mat4 model2 = glm::mat4(1.0f);
+		model2 = glm::translate(model2, glm::vec3(5.0f, 2.0f, 6.0f));
+		model2 = glm::scale(model2, glm::vec3(1.0f, 1.0f, 1.0f));
+		model2 = glm::rotate(model2, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model2));
+		enemy_model.render(&lightingShader);
+
+		// Draw the building model
+		glm::mat4 model4 = glm::mat4(1.0f);
+		model4 = glm::translate(model4, glm::vec3(10.0f, 0.0f, -10.0f));
+		model4 = glm::scale(model4, glm::vec3(2.0f, 2.0f, 2.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model4));
+		building1_model.render(&lightingShader);
+
+		// Draw the building model
+		glm::mat4 model5 = glm::mat4(1.0f);
+		model5 = glm::translate(model5, glm::vec3(10.0f, 0.0f, 0.0f));
+		model5 = glm::scale(model5, glm::vec3(2.0f, 2.0f, 2.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model5));
+		building2_model.render(&lightingShader);
+
+		// Draw the building model
+		glm::mat4 model6 = glm::mat4(1.0f);
+		model6 = glm::translate(model6, glm::vec3(10.0f, 0.0f, 10.0f));
+		model6 = glm::scale(model6, glm::vec3(2.0f, 2.0f, 2.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model6));
+		building3_model.render(&lightingShader);
+		
 		lightingShader.turnOff();
+
+
+		cubemapShader.turnOn();
+
+		GLint oldCullFaceMode;
+		GLint oldDepthFuncMode;
+
+		glGetIntegerv(GL_CULL_FACE_MODE, &oldCullFaceMode);
+		glGetIntegerv(GL_DEPTH_FUNC, &oldDepthFuncMode);
+
+		viewLoc = cubemapShader.getUniformLocation("view");
+		projLoc = cubemapShader.getUniformLocation("projection");
+		modelLoc = cubemapShader.getUniformLocation("model");
+
+		view = glm::mat3(inputManager.getCameraFPS()->GetViewMatrix());
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+		glm::mat4 cubeModel = glm::scale(glm::mat4(1.0f), glm::vec3(20.0f, 20.0f, 20.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(cubeModel));
+
+		cubeMaptexture->Bind(GL_TEXTURE0);
+		GLuint cubeTextureId = cubemapShader.getUniformLocation("skybox");
+		glUniform1f(cubeTextureId, 0);
+
+		glCullFace(GL_FRONT);
+		glDepthFunc(GL_LEQUAL);
+		sp2.render();
+		glCullFace(oldCullFaceMode);
+		glDepthFunc(oldDepthFuncMode);
+
+		cubemapShader.turnOff();
+
+		AABB aabb1_test;
+		AABB aabb2_test;
+
+		aabb1_test.max = aabb1.max + glm::vec3(model1 *  glm::vec4(0, 0, 0, 1));
+		aabb1_test.min = aabb1.min + glm::vec3(model1 *  glm::vec4(0, 0, 0, 1));
+		aabb2_test.max = aabb2.max + glm::vec3(model2 *  glm::vec4(0, 0, 0, 1));
+		aabb2_test.min = aabb2.min + glm::vec3(model2 *  glm::vec4(0, 0, 0, 1));
+
+		if (testBoxBoxIntersection(aabb1_test, aabb2_test)) {
+			std::cout << "Model collision:" << std::endl;
+			inputManager.setCollision(true,getCollisionDirection2D(glm::vec3(model1 *  glm::vec4(0, 0, 0, 1)), glm::vec3(model2 *  glm::vec4(0, 0, 0, 1)), -inputManager.getCameraFPS()->Yaw + 90.0f));
+		}
+		else {
+			inputManager.setCollision(false);
+		}
+			
 
 		/*lampShader.turnOn();
 		// Create transformations

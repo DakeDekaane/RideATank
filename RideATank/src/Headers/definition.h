@@ -5,8 +5,7 @@
  *      Author: rey
  */
 
-#ifndef HEADERS_DEFINITION_H_
-#define HEADERS_DEFINITION_H_
+#pragma once
 
 #include <glm/glm.hpp>
 #include <GL/glew.h>
@@ -66,4 +65,20 @@ enum MODEL_MODE {
 	VERTEX_LIGHT_TEXTURE
 };
 
-#endif /* HEADERS_DEFINITION_H_ */
+enum Direction {
+	COLLISION_FRONT,
+	COLLISION_BACK,
+	COLLISION_RIGHT,
+	COLLISION_LEFT
+};
+
+typedef struct _AABB {
+	glm::vec3 min;
+	glm::vec3 max;
+} AABB;
+
+typedef struct _SBB {
+	glm::vec3 center;
+	float ratio;
+} SBB;
+

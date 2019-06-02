@@ -1,5 +1,4 @@
-#ifndef _InputManager_H
-#define _InputManager_H
+#pragma once
 
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
@@ -7,6 +6,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "CameraFPS.h"
+#include "collision.h"
 
 // Standar GLFW for the management of inputs codes keyboards
 enum InputCodes {
@@ -67,7 +67,17 @@ enum InputCodes {
 	y = 121,
 	Y = 89,
 	z = 122,
-	Z = 90
+	Z = 90,
+	ONE = 49,
+	TWO = 50,
+	THREE = 51,
+	FOUR = 52,
+	FIVE = 53,
+	SIX = 54,
+	SEVEN = 55,
+	EIGHT = 56,
+	NINE = 57,
+	ZERO = 48,
 };
 
 enum MouseButtonIndex {
@@ -76,6 +86,17 @@ enum MouseButtonIndex {
 
 enum State {
 	RELESED = 0, PRESSED = 1, REPEATED = 2
+};
+
+enum CameraMode {
+	PLAYER,
+	SKY
+};
+
+struct Position {
+	GLfloat x;
+	GLfloat y;
+	GLfloat z;
 };
 
 class InputManager {
@@ -89,7 +110,7 @@ public:
 			mouseButtomState[i] = false;
 		for (int i = 0; i < 1024; i++)
 			keyState[i] = false;
-		cameraFPS = new CameraFPS(glm::vec3(0.0, 0.0, 3.0));
+		cameraFPS = new CameraFPS(glm::vec3(0.0, 3.0, 0.0));
 	}
 
 	~InputManager() {
@@ -121,13 +142,40 @@ public:
 		return this->cameraFPS;
 	}
 
+	void setCollision(bool collision,Direction direction) {
+		this->collision = collision;
+		this->direction = direction;
+	}
+
+	void setCollision(bool collision) {
+		this->collision = collision;
+	}
+
+	bool getCollision() {
+		return collision;
+	}
+
+	bool getCollisionDirection() {
+		return direction;
+	}
+
+	void swapCamera();
+
+	CameraMode getActiveCamera() {
+		return activeCamera;
+	}
+
 protected:
+	const float STEP = 0.1f;
 	glm::ivec2 lastMousePos;
 	bool * mouseButtomState;
 	bool * keyState;
-
 	CameraFPS * cameraFPS;
+	bool collision = false;
+	Direction direction;
+	CameraMode activeCamera = PLAYER;
 
 };
 
-#endif
+
+

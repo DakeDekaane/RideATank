@@ -23,8 +23,8 @@ InputCodes InputManager::toApplicationKey(int key) {
 		return InputCodes::Left;
 	case 262:
 		return InputCodes::Right;
-	case 85:
-		return InputCodes::u;
+	case 67:
+		return InputCodes::C;
 	}
 }
 
@@ -53,12 +53,12 @@ void InputManager::keyPressed(InputCodes code, float deltaTime, State state) {
 }
 
 void InputManager::mouseMoved(float mouseX, float mouseY) {
-	if (mouseButtomState[MouseButtonIndex::LEFT]) {
+	//if (mouseButtomState[MouseButtonIndex::LEFT]) {
 		float xoffset = mouseX - lastMousePos.x;
 		float yoffset = lastMousePos.y - mouseY;
 
 		cameraFPS->ProcessMouseMovement(xoffset, yoffset, true);
-	}
+	//}
 
 	lastMousePos = glm::vec2(mouseX, mouseY);
 }
@@ -86,12 +86,24 @@ void InputManager::mouseScroll(float yoffset) {
 }
 
 void InputManager::do_movement(float deltaTime) {
-	if (keyState[InputCodes::W])
+	if (keyState[InputCodes::W] || (collision && direction != COLLISION_FRONT))
 		cameraFPS->ProcessKeyboard(C_FORWARD, deltaTime);
-	if (keyState[InputCodes::S])
+	if (keyState[InputCodes::S] || (collision && direction != COLLISION_BACK))
 		cameraFPS->ProcessKeyboard(C_BACKWARD, deltaTime);
-	if (keyState[InputCodes::A])
+	if (keyState[InputCodes::A] || (collision && direction != COLLISION_LEFT))
 		cameraFPS->ProcessKeyboard(C_LEFT, deltaTime);
-	if (keyState[InputCodes::D])
+	if (keyState[InputCodes::D] || (collision && direction != COLLISION_RIGHT))
 		cameraFPS->ProcessKeyboard(C_RIGHT, deltaTime);
+}
+
+void InputManager::swapCamera() {
+	if (keyState[InputCodes::ONE] ) {
+		activeCamera = PLAYER;
+		std::cout << "Camara FPS selecconada" << std::endl;
+	}
+	else if (keyState[InputCodes::TWO]) {
+		activeCamera = SKY;
+		std::cout << "Camara area seleccionada" << std::endl;
+	}
+
 }
