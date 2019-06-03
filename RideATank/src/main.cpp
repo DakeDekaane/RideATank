@@ -56,23 +56,31 @@ GLuint VAO, VBO, EBO;
 
 const int BUILDING_PER_COLOR = 8;
 
-//Colliders
-AABB aabb_bullet_test;
-AABB aabb1_test;
-AABB aabb2_test;
-AABB aabb_building1[BUILDING_PER_COLOR];
-AABB aabb_building2[BUILDING_PER_COLOR];
-AABB aabb_building3[BUILDING_PER_COLOR];
-
-GLint modelLoc;
-
-
 int screenWidth;
 int screenHeight;
 
 GLFWwindow * window;
 InputManager inputManager;
 double deltaTime;
+
+bool shot = false;
+bool bullet_collision = false;
+
+const int ENEMIES = 10;
+bool enemy_alive[ENEMIES] = { true, true, true, true, true, true, true, true, true, true, };
+
+glm::vec3 enemy_positions[] = {
+	{ 5.0f, 2.0f, 6.0f },
+	{ 15.0f, 2.0f, 6.0f },
+	{ 25.0f, 2.0f, 6.0f },
+	{ 35.0f, 2.0f, 6.0f },
+	{ 5.0f, 2.0f, 16.0f },
+	{ 5.0f, 2.0f, 26.0f },
+	{ 5.0f, 2.0f, 36.0f },
+	{ 15.0f, 2.0f, 16.0f },
+	{ 25.0f, 2.0f, 26.0f },
+	{ 35.0f, 2.0f, 36.0f },
+};
 
 Position player_pos = { 0.0f, 2.0f, 0.0f };
 
@@ -125,6 +133,22 @@ glm::vec3 building3_positions[] = {
 	{ -4.0f, 0.0f, 24.0f },
 };
 
+//Colliders
+AABB aabb_bullet_test;
+AABB aabb1_test;
+AABB aabb2_test[ENEMIES];
+AABB aabb_building1[BUILDING_PER_COLOR];
+AABB aabb_building2[BUILDING_PER_COLOR];
+AABB aabb_building3[BUILDING_PER_COLOR];
+AABB bounds[] = {
+	{ glm::vec3(-50.0f,0.0f,-120.0f) , glm::vec3(50.0f,20.0f,-50.0f) },
+	{ glm::vec3(-50.0f,0.0f,50.0f) , glm::vec3(50.0f,20.0f,120.0f) },
+	{ glm::vec3(-120.0f,0.0f,-50.0f) , glm::vec3(-50.0f,20.0f,50.0f) },
+	{ glm::vec3(50.0f,0.0f,-50.0f) , glm::vec3(120.0f,20.0f,50.0f) },
+	{ glm::vec3(-50.0f,-120.0f,-50.0f) , glm::vec3(50.0f,0.0f,50.0f) },
+	{ glm::vec3(-50.0f,20.0f,-50.0f) , glm::vec3(50.0f,120.0f,50.0f) },
+};
+
 // Se definen todos las funciones.
 void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes);
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
@@ -134,7 +158,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen);
 void destroyWindow();
 void destroy();
 bool processInput(bool continueApplication = true);
-void shoot();
+
 
 // Implementacion de todas las funciones.
 void init(int width, int height, std::string strTitle, bool bFullScreen) {
@@ -236,9 +260,9 @@ void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes) {
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode) {
-	//if (key == GLFW_KEY_SPACE || action == GLFW_PRESS) {
-//		shoot();
-	//}
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+		shot = true;
+	}
 	inputManager.keyPressed(inputManager.toApplicationKey(key), deltaTime * 10.0f,
 		inputManager.toApplicationState(action));
 }
@@ -273,8 +297,6 @@ void applicationLoop() {
 
 	//glm::vec3 lightPos(0.0f, 20.0f, 0.0f);
 	glm::vec3 lightDir(0.2f, -1.0f, 0.2f);
-	double lastTime = TimeManager::Instance().GetTime();
-
 	AABB aabb1 = getAABB(player_model.getMeshes());
 	AABB aabb2 = getAABB(enemy_model.getMeshes());
 
@@ -283,6 +305,8 @@ void applicationLoop() {
 	AABB aabb_b3 = getAABB(building3_model.getMeshes());
 
 	AABB aabb_bullet = getAABB(bullet_model.getMeshes());
+
+	double lastTime = TimeManager::Instance().GetTime();
 
 	while (psi) {
 		psi = processInput(true);
@@ -344,14 +368,15 @@ void applicationLoop() {
 		}
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
 		// Get the uniform locations
-		modelLoc = lightingShader.getUniformLocation("model");
+		GLint modelLoc = lightingShader.getUniformLocation("model");
 		GLint viewLoc = lightingShader.getUniformLocation("view");
 		GLint projLoc = lightingShader.getUniformLocation("projection");
 		// Pass the matrices to the shader
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-		GLfloat timeValue = TimeManager::Instance().GetTime() - lastTime;
+		//Colliders
+		
 
 		// Draw the floor model
 		glm::mat4 model0 = glm::mat4(1.0f);
@@ -371,18 +396,96 @@ void applicationLoop() {
 		aabb1_test.min = aabb1.min + glm::vec3(model1 *  glm::vec4(0, 0, 0, 1));
 
 		// Draw the enemy model
-		glm::mat4 model2 = glm::mat4(1.0f);
-		model2 = glm::translate(model2, glm::vec3(5.0f, 2.0f, 6.0f));
-		model2 = glm::scale(model2, glm::vec3(1.0f, 1.0f, 1.0f));
-		model2 = glm::rotate(model2, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model2));
-		enemy_model.render(&lightingShader);
-		aabb2_test.max = aabb2.max + glm::vec3(model2 *  glm::vec4(0, 0, 0, 1));
-		aabb2_test.min = aabb2.min + glm::vec3(model2 *  glm::vec4(0, 0, 0, 1));
+		glm::mat4 model2[ENEMIES];
+		for (int i = 0; i < ENEMIES; i++) {
+			if (enemy_alive[i]) {
+			std::cout << "Dibujando tanque " << i << std::endl;
+				model2[i] = glm::mat4(1.0f);
+				model2[i] = glm::translate(model2[i], enemy_positions[i]);
+				model2[i] = glm::scale(model2[i], glm::vec3(1.0f, 1.0f, 1.0f));
+				model2[i] = glm::rotate(model2[i], glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model2[i]));
+				enemy_model.render(&lightingShader);
+				aabb2_test[i].max = aabb2.max + glm::vec3(model2[i] *  glm::vec4(0, 0, 0, 1));
+				aabb2_test[i].min = aabb2.min + glm::vec3(model2[i] *  glm::vec4(0, 0, 0, 1));
+			}
+		}
 
 		//Bullet
 		glm::mat4 model_bullet = glm::mat4(1.0f);
+		glm::vec3 bulletPosInit;
+		float bulletAnglePitchInit;
+		float bulletAngleYawInit;
+
+		if (!shot) {
+			bullet_collision = false;
+			lastTime = TimeManager::Instance().GetTime();
+			bulletPosInit = inputManager.getCameraFPS()->Position;
+			bulletAngleYawInit = -inputManager.getCameraFPS()->Yaw + 90.0f;
+			bulletAnglePitchInit = -inputManager.getCameraFPS()->Pitch; 
+		}
 		
+		if (shot) {
+			GLfloat bullet_speed = 0.1f;
+			GLfloat position = 0.0;
+			if (!bullet_collision) {
+				GLfloat timeValue = TimeManager::Instance().GetTime() - lastTime;
+				model_bullet = glm::translate(model_bullet, bulletPosInit);
+				model_bullet = glm::rotate(model_bullet, glm::radians(bulletAngleYawInit), glm::vec3(0.0f, 1.0f, 0.0f));
+				model_bullet = glm::rotate(model_bullet, glm::radians(bulletAnglePitchInit), glm::vec3(1.0f, 0.0f, 0.0f));
+				model_bullet = glm::translate(model_bullet, bulletOffset);
+				model_bullet = glm::scale(model_bullet, glm::vec3(0.3f, 0.3f, 0.3f));
+				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 10 ));
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_bullet));
+				bullet_model.render(&lightingShader);
+				aabb_bullet_test.max = aabb_bullet.max * 0.3f + glm::vec3(model_bullet *  glm::vec4(0, 0, 0, 1));
+				aabb_bullet_test.min = aabb_bullet.min * 0.3f + glm::vec3(model_bullet *  glm::vec4(0, 0, 0, 1));
+
+				//Collision detection and resolution
+				//Enemy collision
+				for (int i = 0; i < ENEMIES; i++) {
+					if (testBoxBoxIntersection(aabb_bullet_test, aabb2_test[i])) {
+						std::cout << "Bullet hit: Enemy" << std::endl;
+						bullet_collision = true;
+						shot = false;
+						enemy_alive[i] = false;
+						aabb2_test[i].max = { 0.0f,-2.0f,0.0f };
+						aabb2_test[i].min = { 0.0f,-2.0f,0.0f };
+						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb2_test.getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+					}
+				}
+				//Building collision
+				for (int i = 0; i < BUILDING_PER_COLOR; i++) {
+					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building1[i])) {
+						std::cout << "Bullet hit: Orange Building." << std::endl;
+						bullet_collision = true;
+						shot = false;
+						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building1[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+					}
+					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building2[i])) {
+						std::cout << "Bullet hit: Green Building." << std::endl;
+						bullet_collision = true;
+						shot = false;
+						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building2[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+					}
+					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building3[i])) {
+						std::cout << "Bullet hit: Blue Building." << std::endl;
+						bullet_collision = true;
+						shot = false;
+						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building3[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+					}
+				}
+				for (int i = 0; i < 6; i++) {
+					if (testBoxBoxIntersection(aabb_bullet_test, bounds[i])) {
+						std::cout << "Bullet hit: Bounds" << std::endl;
+						bullet_collision = true;
+						shot = false;
+						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), bounds[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+					}
+				}
+
+			}
+		}
 		
 
 		// Draw the building model
@@ -456,12 +559,12 @@ void applicationLoop() {
 
 		//Collision detection and resolution
 		//Enemy collision
-		if (testBoxBoxIntersection(aabb1_test, aabb2_test)) {
-			std::cout << "Model collision: Enemy" << std::endl;
-			inputManager.setCollision(true,getCollisionDirection2D(aabb1_test.getCenter(), aabb2_test.getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
-		}
-		else {
-			inputManager.setCollision(false);
+		inputManager.setCollision(false);
+		for (int i = 0; i < ENEMIES; i++) {
+			if (testBoxBoxIntersection(aabb1_test, aabb2_test[i])) {
+				std::cout << "Model collision: Enemy" << std::endl;
+				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), aabb2_test[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+			}
 		}
 		//Building collision
 		for (int i = 0; i < BUILDING_PER_COLOR; i++) {
@@ -478,7 +581,13 @@ void applicationLoop() {
 				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), aabb_building3[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 			}
 		}
-			
+		//Bounds collision
+		for (int i = 0; i < 4; i++) {
+			if (testBoxBoxIntersection(aabb1_test, bounds[i])) {
+				std::cout << "Model collision: Bounds" << std::endl;
+				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), bounds[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+			}
+		}
 
 		/*lampShader.turnOn();
 		// Create transformations
@@ -504,57 +613,4 @@ int main(int argc, char ** argv) {
 	applicationLoop();
 	destroy();
 	return 1;
-}
-
-void shoot() {
-	AABB aabb = getAABB(bullet_model.getMeshes());
-	glm::mat4 model_mat = glm::mat4(1.0f);
-	model_mat = glm::translate(model_mat, inputManager.getCameraFPS()->Position);
-	model_mat = glm::rotate(model_mat, glm::radians(-inputManager.getCameraFPS()->Yaw + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	model_mat = glm::translate(model_mat, bulletOffset);
-	model_mat = glm::scale(model_mat, glm::vec3(0.3f, 0.3f, 0.3f));
-	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_mat));
-	bullet_model.render(&lightingShader);
-	aabb_bullet_test.max = aabb.max * 0.3f + glm::vec3(model_mat *  glm::vec4(0, 0, 0, 1));
-	aabb_bullet_test.min = aabb.min * 0.3f + glm::vec3(model_mat *  glm::vec4(0, 0, 0, 1));
-	double lastTime = TimeManager::Instance().GetTime();
-	bool collision = false;
-	GLfloat bullet_speed = 0.1f;
-	GLfloat position = 0.0;
-	while (!collision) {
-		GLfloat timeValue = TimeManager::Instance().GetTime() - lastTime;
-		position += bullet_speed * timeValue;
-		model_mat = glm::translate(model_mat, glm::vec3(0.0f, 0.0f, position));
-
-		//Collision detection and resolution
-		//Enemy collision
-		if (testBoxBoxIntersection(aabb1_test, aabb2_test)) {
-			std::cout << "Bullet hit: Enemy" << std::endl;
-			collision = true;
-			//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb2_test.getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
-		}
-		else {
-			inputManager.setCollision(false);
-		}
-		//Building collision
-		for (int i = 0; i < BUILDING_PER_COLOR; i++) {
-			if (testBoxBoxIntersection(aabb1_test, aabb_building1[i])) {
-				std::cout << "Bullet hit: Orange Building." << std::endl;
-				collision = true;
-				//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building1[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
-			}
-			if (testBoxBoxIntersection(aabb1_test, aabb_building2[i])) {
-				std::cout << "Bullet hit: Green Building." << std::endl;
-				collision = true;
-				//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building2[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
-			}
-			if (testBoxBoxIntersection(aabb1_test, aabb_building3[i])) {
-				std::cout << "Bullet hit: Blue Building." << std::endl;
-				collision = true;
-				//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building3[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
-			}
-		}
-
-	}
-
 }
