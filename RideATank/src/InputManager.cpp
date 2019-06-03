@@ -7,6 +7,8 @@ InputCodes InputManager::toApplicationKey(int key) {
 	switch (key) {
 	case 256:
 		return InputCodes::kEscape;
+	case 32:
+		return InputCodes::Space;
 	case 87:
 		return InputCodes::W;
 	case 83:
@@ -25,6 +27,14 @@ InputCodes InputManager::toApplicationKey(int key) {
 		return InputCodes::Right;
 	case 67:
 		return InputCodes::C;
+	case 78:
+		return InputCodes::N;
+	case 77:
+		return InputCodes::M;
+	case 49:
+		return InputCodes::ONE;
+	case 50:
+		return InputCodes::TWO;
 	}
 }
 
@@ -34,6 +44,8 @@ State InputManager::toApplicationState(int state) {
 		return State::RELESED;
 	case 1:
 		return State::PRESSED;
+	case 2:
+		return State::REPEATED;
 	}
 }
 
@@ -97,13 +109,25 @@ void InputManager::do_movement(float deltaTime) {
 }
 
 void InputManager::swapCamera() {
-	if (keyState[InputCodes::ONE] ) {
+	if (keyState[InputCodes::ONE]) {
 		activeCamera = PLAYER;
 		std::cout << "Camara FPS selecconada" << std::endl;
 	}
-	else if (keyState[InputCodes::TWO]) {
+	else if (keyState[InputCodes::TWO] ) {
 		activeCamera = SKY;
 		std::cout << "Camara area seleccionada" << std::endl;
 	}
 
 }
+
+void InputManager::changeDay() {
+	if (keyState[InputCodes::N] ) {
+		_isDay = false;
+	}
+	if (keyState[InputCodes::M]) {
+		_isDay = true;
+	}
+}
+
+
+

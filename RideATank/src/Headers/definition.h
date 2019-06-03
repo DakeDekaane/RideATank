@@ -75,6 +75,12 @@ enum Direction {
 typedef struct _AABB {
 	glm::vec3 min;
 	glm::vec3 max;
+	glm::vec3 getCenter() {
+		GLfloat x = (max.x + min.x) / 2;
+		GLfloat y = (max.y + min.y) / 2;
+		GLfloat z = (max.z + min.z) / 2;
+		return { x, y, z };
+	}
 } AABB;
 
 typedef struct _SBB {

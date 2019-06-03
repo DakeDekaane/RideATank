@@ -7,6 +7,7 @@
 
 #include "CameraFPS.h"
 #include "collision.h"
+#include "Model.h"
 
 // Standar GLFW for the management of inputs codes keyboards
 enum InputCodes {
@@ -165,6 +166,12 @@ public:
 		return activeCamera;
 	}
 
+	bool isDay() {
+		return _isDay;
+	}
+
+	void changeDay();
+
 protected:
 	const float STEP = 0.1f;
 	glm::ivec2 lastMousePos;
@@ -174,6 +181,7 @@ protected:
 	bool collision = false;
 	Direction direction;
 	CameraMode activeCamera = PLAYER;
+	bool _isDay = true;
 
 };
 
