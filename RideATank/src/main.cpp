@@ -49,13 +49,15 @@ Model building1_model;
 Model building2_model;
 Model building3_model;
 Model bullet_model;
+Model lamp_base_model;
 
 Texture textureParticle(GL_TEXTURE_2D, "../Textures/explosion.png");
 Texture textureSmoke(GL_TEXTURE_2D, "../Textures/smoke.png");
-CubemapTexture* cubeMaptexture = new CubemapTexture("../Textures", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png");
+CubemapTexture* cubeMapTexture = new CubemapTexture("../Textures", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png");
+CubemapTexture* cubeMapTextureNight = new CubemapTexture("../Textures", "sky-night.png", "sky-night.png", "sky-night.png", "sky-night.png", "sky-night.png", "sky-night.png");
 
-Sphere sp(1.5, 50, 50, MODEL_MODE::VERTEX_COLOR);
-Sphere sp2(1.5, 50, 50, MODEL_MODE::VERTEX_LIGHT_TEXTURE);
+Sphere sp(1.5, 20, 20, MODEL_MODE::VERTEX_COLOR);
+Sphere sp2(1.5, 20, 20, MODEL_MODE::VERTEX_LIGHT_COLOR);
 
 GLuint VAO, VBO, EBO;
 
@@ -140,14 +142,37 @@ glm::vec3 building3_positions[] = {
 };
 
 //Point Lights
-const int NUM_POINT_LIGHTS = 6;
+const int NUM_POINT_LIGHTS = 24;
 glm::vec3 pointLightPositions[] = {
-	glm::vec3(6.0f,  3.0f,  6.0f),
-	glm::vec3(12.0f,  3.0f,  12.0f),
-	glm::vec3(-16.0f, 3.0f, 0.0f),
-	glm::vec3(-16.0f, 3.0f, 12.0f),
-	glm::vec3(-28.0f, 3.0f, 0.0f),
-	glm::vec3(-28.0f, 3.0f, 12.0f),
+	glm::vec3(-44.5f, 3.0f, -42.5f),
+	glm::vec3(-44.5f, 3.0f, -27.25f),
+	glm::vec3(-44.5f, 3.0f, -14.25f),
+	glm::vec3(-44.5f, 3.0f, 0.75f),
+	glm::vec3(-44.5f, 3.0f, 13.5f),
+	glm::vec3(-44.5f, 3.0f, 28.75f),
+
+	glm::vec3(-29.25f, 3.0f, -42.5f),
+	glm::vec3(-29.25f, 3.0f, -27.25f),
+	glm::vec3(-29.25f, 3.0f, -14.25f),
+	glm::vec3(-29.25f, 3.0f, 0.75f),
+	glm::vec3(-29.25f, 3.0f, 13.5f),
+	glm::vec3(-29.25f, 3.0f, 28.75f),
+
+	glm::vec3(-16.5f, 3.0f, -42.5f),
+	glm::vec3(-16.5f, 3.0f, -27.25f),
+	glm::vec3(-16.5f, 3.0f, -14.25f),
+	glm::vec3(-16.5f, 3.0f, 0.75f),
+	glm::vec3(-16.5f, 3.0f, 13.5f),
+	glm::vec3(-16.5f, 3.0f, 28.75f),
+
+	glm::vec3(-1.25f, 3.0f, -42.5f),
+	glm::vec3(-1.25f, 3.0f, -27.25f),
+	glm::vec3(-1.25f, 3.0f, -14.25f),
+	glm::vec3(-1.25f, 3.0f, 0.75f),
+	glm::vec3(-1.25f, 3.0f, 13.5f),
+	glm::vec3(-1.25f, 3.0f, 28.75f),
+
+
 };
 
 //Spotlights
@@ -331,6 +356,7 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	building1_model.loadModel("../models/buildings/building1.obj");
 	building2_model.loadModel("../models/buildings/building2.obj");
 	building3_model.loadModel("../models/buildings/building3.obj");
+	lamp_base_model.loadModel("../models/buildings/lamp.obj");
 	
 
 	lightingShader.initialize("../Shaders/loadModelLighting.vs", "../Shaders/loadModelLighting.fs");
@@ -344,7 +370,9 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	// The particle texture
 	textureParticle.load();
 	initParticleBuffers();
-	cubeMaptexture->Load();
+	cubeMapTexture->Load();
+	cubeMapTextureNight->Load();
+
 }
 
 void destroyWindow() {
@@ -454,11 +482,17 @@ void applicationLoop() {
 		GLint lightDiffuseLocP[NUM_POINT_LIGHTS];
 		GLint lightSpecularLocP[NUM_POINT_LIGHTS];
 		GLint lightPositionLocP[NUM_POINT_LIGHTS];
+		GLint lightConstantLocP[NUM_POINT_LIGHTS];
+		GLint lightLinearLocP[NUM_POINT_LIGHTS];
+		GLint lightQuadraticLocP[NUM_POINT_LIGHTS];
 		for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
 			lightAmbientLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].ambient");
 			lightDiffuseLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].diffuse");
 			lightSpecularLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].specular");
 			lightPositionLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].position");
+			lightConstantLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].constant");
+			lightLinearLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].linear");
+			lightQuadraticLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].quadratic");
 
 		}
 
@@ -470,6 +504,9 @@ void applicationLoop() {
 		GLint lightDirectionLocS[NUM_SPOTLIGHTS];
 		GLint lightCutOff[NUM_SPOTLIGHTS];
 		GLint lightOuterCutOff[NUM_SPOTLIGHTS];
+		GLint lightConstantLocS[NUM_SPOTLIGHTS];
+		GLint lightLinearLocS[NUM_SPOTLIGHTS];
+		GLint lightQuadraticLocS[NUM_SPOTLIGHTS];
 		glm::mat4 spot_mat[NUM_SPOTLIGHTS];
 		glm::vec3 spot_pos[NUM_SPOTLIGHTS];
 		for (int i = 0; i < NUM_SPOTLIGHTS; i++) {
@@ -480,6 +517,9 @@ void applicationLoop() {
 			lightDirectionLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].direction");
 			lightCutOff[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].cutOff");
 			lightOuterCutOff[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].outerCutOff");
+			lightConstantLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].constant");
+			lightLinearLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].linear");
+			lightQuadraticLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].quadratic");
 			spot_mat[i] = glm::translate(glm::mat4(1.0f), inputManager.getCameraFPS()->Position);
 			spot_mat[i] = glm::rotate(spot_mat[i], glm::radians(-inputManager.getCameraFPS()->Yaw + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 			spot_mat[i] = glm::rotate(spot_mat[i], glm::radians(-inputManager.getCameraFPS()->Pitch), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -498,17 +538,23 @@ void applicationLoop() {
 				glUniform3f(lightDiffuseLocP[i], 0.0f, 0.0f, 0.0f);
 				glUniform3f(lightSpecularLocP[i], 1.0f, 1.0f, 1.0f);
 				glUniform3f(lightPositionLocP[i], pointLightPositions[i].x, pointLightPositions[i].y, pointLightPositions[i].z);
+				glUniform1f(lightConstantLocP[i], 1.0f);
+				glUniform1f(lightLinearLocP[i], 0.35f);
+				glUniform1f(lightQuadraticLocP[i], 0.44f);
 			}
 		}
 		else {
-			glUniform3f(lightAmbientLoc, 0.1f, 0.1f, 0.1f);
+			glUniform3f(lightAmbientLoc, 0.05f, 0.05f, 0.05f);
 			glUniform3f(lightDiffuseLoc, 0.1f, 0.1f, 0.1f);
 			glUniform3f(lightSpecularLoc, 1.0f, 1.0f, 1.0f);
 			for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
 				glUniform3f(lightAmbientLocP[i], 0.0f, 0.0f, 0.0f);
-				glUniform3f(lightDiffuseLocP[i], 0.1f, 0.1f, 0.1f);
+				glUniform3f(lightDiffuseLocP[i], 1.0f, 1.0f, 1.0f);
 				glUniform3f(lightSpecularLocP[i], 1.0f, 1.0f, 1.0f);
 				glUniform3f(lightPositionLocP[i], pointLightPositions[i].x, pointLightPositions[i].y, pointLightPositions[i].z);
+				glUniform1f(lightConstantLocP[i], 1.0f);
+				glUniform1f(lightLinearLocP[i], 0.22f);
+				glUniform1f(lightQuadraticLocP[i], 0.20f);
 			}
 		}
 		glUniform3f(lightDirectionLoc, lightDir.x, lightDir.y, lightDir.z);
@@ -516,7 +562,7 @@ void applicationLoop() {
 		for (int i = 0; i < NUM_SPOTLIGHTS; i++) {
 			if (inputManager.getTankLights()) {
 				glUniform3f(lightAmbientLocS[i], 0.0f, 0.0f, 0.0f);
-				glUniform3f(lightDiffuseLocS[i], 0.4f, 0.4f, 0.1f);
+				glUniform3f(lightDiffuseLocS[i], 1.0f, 0.8f, 0.0f);
 				glUniform3f(lightSpecularLocS[i], 1.0f, 1.0f, 1.0f);
 			}
 			else {
@@ -528,6 +574,9 @@ void applicationLoop() {
 			glUniform3f(lightDirectionLocS[i], inputManager.getCameraFPS()->Front.x, inputManager.getCameraFPS()->Front.y, inputManager.getCameraFPS()->Front.z);
 			glUniform1f(lightCutOff[i], glm::cos(glm::radians(12.5f)));
 			glUniform1f(lightOuterCutOff[i], glm::cos(glm::radians(17.5f)));
+			glUniform1f(lightConstantLocS[i], 1.0f);
+			glUniform1f(lightLinearLocS[i], 0.14f);
+			glUniform1f(lightQuadraticLocS[i], 0.07f);
 		}
 
 		// Create camera transformations
@@ -614,7 +663,7 @@ void applicationLoop() {
 				model_bullet = glm::rotate(model_bullet, glm::radians(bulletAnglePitchInit), glm::vec3(1.0f, 0.0f, 0.0f));
 				model_bullet = glm::translate(model_bullet, bulletOffset);
 				model_bullet = glm::scale(model_bullet, glm::vec3(0.3f, 0.3f, 0.3f));
-				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 10));
+				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 15));
 				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_bullet));
 				bullet_model.render(&lightingShader);
 				aabb_bullet_test.max = aabb_bullet.max * 0.3f + glm::vec3(model_bullet *  glm::vec4(0, 0, 0, 1));
@@ -714,6 +763,17 @@ void applicationLoop() {
 			building3_model.render(&lightingShader);
 			aabb_building3[i].max = aabb_b2.max * 2.0f + glm::vec3(model6[i] * glm::vec4(0, 0, 0, 1));
 			aabb_building3[i].min = aabb_b2.min * 2.0f + glm::vec3(model6[i] * glm::vec4(0, 0, 0, 1));
+		}
+
+		//Draw lamp bases
+		glm::mat4 model7;
+		for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+			model7 = glm::mat4(1.0f);
+			model7 = glm::translate(model7, pointLightPositions[i] - glm::vec3(0.0f, 2.75f, 0.0f));
+			model7 = glm::scale(model7, glm::vec3(1.0f, 0.80f, 1.0f));
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model7));
+			lamp_base_model.render(&lightingShader);
+			
 		}
 
 		lightingShader.turnOff();
@@ -847,14 +907,13 @@ void applicationLoop() {
 		glm::mat4 model_lamp;
 		for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
 			model_lamp = glm::translate(glm::mat4(1.0f), pointLightPositions[i]);
-			model_lamp = glm::scale(model_lamp, glm::vec3(0.2, 0.2, 0.2));
+			model_lamp = glm::scale(model_lamp, glm::vec3(0.27, 0.27, 0.27));
 			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_lamp));
 			sp.render();
 		}
 		for (int i = 0; i < NUM_SPOTLIGHTS; i++){
 			model_lamp = glm::translate(glm::mat4(1.0f), inputManager.getCameraFPS()->Position);
 			model_lamp = glm::rotate(model_lamp, glm::radians(-inputManager.getCameraFPS()->Yaw + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			model_lamp = glm::rotate(model_lamp, glm::radians(-inputManager.getCameraFPS()->Pitch), glm::vec3(1.0f, 0.0f, 0.0f));
 			model_lamp = glm::translate(model_lamp, tank_light_positions[i]);
 			model_lamp = glm::scale(model_lamp, glm::vec3(0.1, 0.1, 0.1));
 			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_lamp));
@@ -881,7 +940,13 @@ void applicationLoop() {
 		glm::mat4 cubeModel = glm::scale(glm::mat4(1.0f), glm::vec3(20.0f, 20.0f, 20.0f));
 		glUniformMatrix4fv(modelLoc2, 1, GL_FALSE, glm::value_ptr(cubeModel));
 
-		cubeMaptexture->Bind(GL_TEXTURE0);
+		if (inputManager.isDay()) {
+			cubeMapTexture->Bind(GL_TEXTURE0);
+		}
+		
+		else {
+			cubeMapTextureNight->Bind(GL_TEXTURE0);
+		}
 		GLuint cubeTextureId = cubemapShader.getUniformLocation("skybox");
 		glUniform1f(cubeTextureId, 0);
 
