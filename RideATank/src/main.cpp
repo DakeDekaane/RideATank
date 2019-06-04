@@ -38,6 +38,9 @@ Shader lightingShader;
 Shader lampShader;
 Shader cubemapShader;
 Shader envCubeShader;
+Shader bulletParticlesShader;
+Shader explosionParticlesShader;
+Shader smokeShader;
 
 Model floor_model;
 Model player_model;
@@ -47,6 +50,8 @@ Model building2_model;
 Model building3_model;
 Model bullet_model;
 
+Texture textureParticle(GL_TEXTURE_2D, "../Textures/explosion.png");
+Texture textureSmoke(GL_TEXTURE_2D, "../Textures/smoke.png");
 CubemapTexture* cubeMaptexture = new CubemapTexture("../Textures", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png");
 
 Sphere sp(1.5, 50, 50, MODEL_MODE::VERTEX_COLOR);
@@ -65,6 +70,7 @@ double deltaTime;
 
 bool shot = false;
 bool bullet_collision = false;
+bool bullet_collision_enemy = false;
 
 const int ENEMIES = 10;
 bool enemy_alive[ENEMIES] = { true, true, true, true, true, true, true, true, true, true, };
@@ -149,6 +155,18 @@ AABB bounds[] = {
 	{ glm::vec3(-50.0f,20.0f,-50.0f) , glm::vec3(50.0f,120.0f,50.0f) },
 };
 
+// Definition for the particle system
+GLuint initVel, startTime;
+GLuint VAOParticles;
+GLuint nParticles;
+
+double particleStartTime;
+double particleTime;
+double explosionStartTime;
+double explosionTime;
+double smokeStartTime;
+double smokeTime;
+
 // Se definen todos las funciones.
 void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes);
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
@@ -159,6 +177,70 @@ void destroyWindow();
 void destroy();
 bool processInput(bool continueApplication = true);
 
+void initParticleBuffers() {
+	nParticles = 500;
+
+	// Generate the buffers
+	glGenBuffers(1, &initVel);   // Initial velocity buffer
+	glGenBuffers(1, &startTime); // Start time buffer
+
+								 // Allocate space for all buffers
+	int size = nParticles * 3 * sizeof(float);
+	glBindBuffer(GL_ARRAY_BUFFER, initVel);
+	glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, startTime);
+	glBufferData(GL_ARRAY_BUFFER, nParticles * sizeof(float), NULL, GL_STATIC_DRAW);
+
+	// Fill the first velocity buffer with random velocities
+	glm::vec3 v(0.0f);
+	float velocity, theta, phi;
+	GLfloat *data = new GLfloat[nParticles * 3];
+	for (unsigned int i = 0; i < nParticles; i++) {
+
+		theta = glm::mix(0.0f, glm::pi<float>() / 6.0f, ((float)rand() / RAND_MAX));
+		phi = glm::mix(0.0f, glm::two_pi<float>(), ((float)rand() / RAND_MAX));
+
+		v.x = sinf(theta) * cosf(phi);
+		v.y = cosf(theta);
+		v.z = sinf(theta) * sinf(phi);
+
+		velocity = glm::mix(0.1f, 1.5f, ((float)rand() / RAND_MAX));
+		v = glm::normalize(v) * velocity;
+
+		data[3 * i] = v.x;
+		data[3 * i + 1] = v.y;
+		data[3 * i + 2] = v.z;
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, initVel);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+
+	// Fill the start time buffer
+	delete[] data;
+	data = new GLfloat[nParticles];
+	float time = 0.0f;
+	float rate = 0.00075f;
+	for (unsigned int i = 0; i < nParticles; i++) {
+		data[i] = time;
+		time += rate;
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, startTime);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, nParticles * sizeof(float), data);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	delete[] data;
+
+	glGenVertexArrays(1, &VAOParticles);
+	glBindVertexArray(VAOParticles);
+	glBindBuffer(GL_ARRAY_BUFFER, initVel);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, startTime);
+	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, NULL);
+	glEnableVertexAttribArray(1);
+
+	glBindVertexArray(0);
+}
 
 // Implementacion de todas las funciones.
 void init(int width, int height, std::string strTitle, bool bFullScreen) {
@@ -236,7 +318,13 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	//lampShader.initialize("../Shaders/lampShader.vs", "../Shaders/lampShader.fs");
 	cubemapShader.initialize("../Shaders/cubemapTexture.vs", "../Shaders/cubemapTexture.fs");
 	envCubeShader.initialize("../Shaders/envRefCubemapTexture.vs", "../Shaders/envRefCubemapTexture.fs");
+	bulletParticlesShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
+	explosionParticlesShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
+	smokeShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
 
+	// The particle texture
+	textureParticle.load();
+	initParticleBuffers();
 	cubeMaptexture->Load();
 }
 
@@ -260,7 +348,8 @@ void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes) {
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mode) {
-	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS && !shot) {
+		smokeStartTime = TimeManager::Instance().GetTime();
 		shot = true;
 	}
 	inputManager.keyPressed(inputManager.toApplicationKey(key), deltaTime * 10.0f,
@@ -399,7 +488,6 @@ void applicationLoop() {
 		glm::mat4 model2[ENEMIES];
 		for (int i = 0; i < ENEMIES; i++) {
 			if (enemy_alive[i]) {
-			std::cout << "Dibujando tanque " << i << std::endl;
 				model2[i] = glm::mat4(1.0f);
 				model2[i] = glm::translate(model2[i], enemy_positions[i]);
 				model2[i] = glm::scale(model2[i], glm::vec3(1.0f, 1.0f, 1.0f));
@@ -416,9 +504,12 @@ void applicationLoop() {
 		glm::vec3 bulletPosInit;
 		float bulletAnglePitchInit;
 		float bulletAngleYawInit;
+		glm::vec3 hit_point;
+		glm::vec3 explosion_origin;
 
 		if (!shot) {
 			bullet_collision = false;
+			bullet_collision_enemy = false;
 			lastTime = TimeManager::Instance().GetTime();
 			bulletPosInit = inputManager.getCameraFPS()->Position;
 			bulletAngleYawInit = -inputManager.getCameraFPS()->Yaw + 90.0f;
@@ -449,8 +540,13 @@ void applicationLoop() {
 						bullet_collision = true;
 						shot = false;
 						enemy_alive[i] = false;
+						hit_point = aabb_bullet_test.getCenter();
+						explosion_origin = aabb2_test[i].getCenter();
 						aabb2_test[i].max = { 0.0f,-2.0f,0.0f };
 						aabb2_test[i].min = { 0.0f,-2.0f,0.0f };
+						std::cout << "Explosion origin: " << explosion_origin.x << "," << explosion_origin.y << "," << explosion_origin.z << "\n";
+						particleStartTime = explosionStartTime = TimeManager::Instance().GetTime();
+						
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb2_test.getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 				}
@@ -460,26 +556,35 @@ void applicationLoop() {
 						std::cout << "Bullet hit: Orange Building." << std::endl;
 						bullet_collision = true;
 						shot = false;
+						hit_point = aabb_bullet_test.getCenter();
+						particleStartTime = TimeManager::Instance().GetTime();
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building1[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building2[i])) {
 						std::cout << "Bullet hit: Green Building." << std::endl;
 						bullet_collision = true;
 						shot = false;
+						hit_point = aabb_bullet_test.getCenter();
+						particleStartTime = TimeManager::Instance().GetTime();
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building2[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building3[i])) {
 						std::cout << "Bullet hit: Blue Building." << std::endl;
 						bullet_collision = true;
 						shot = false;
+						hit_point = aabb_bullet_test.getCenter();
+						particleStartTime = TimeManager::Instance().GetTime();
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building3[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 				}
+				//Bounds collision
 				for (int i = 0; i < 6; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, bounds[i])) {
 						std::cout << "Bullet hit: Bounds" << std::endl;
 						bullet_collision = true;
 						shot = false;
+						hit_point = aabb_bullet_test.getCenter();
+						particleStartTime = TimeManager::Instance().GetTime();
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), bounds[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 				}
@@ -525,6 +630,124 @@ void applicationLoop() {
 		}
 		
 		lightingShader.turnOff();
+
+		//Smoke 
+		smokeShader.turnOn();
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// Set the point size
+		if (inputManager.getActiveCamera() == PLAYER) {
+			glPointSize(30.0f);
+		}
+		if (inputManager.getActiveCamera() == SKY) {
+			glPointSize(10.0f);
+		}
+
+		textureSmoke.bind(GL_TEXTURE0);
+
+		modelLoc = smokeShader.getUniformLocation("model");
+		viewLoc = smokeShader.getUniformLocation("view");
+		projLoc = smokeShader.getUniformLocation("projection");
+		// Pass the matrices to the shader
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+		smokeTime = TimeManager::Instance().GetTime() - smokeStartTime;
+		glUniform1f(smokeShader.getUniformLocation("Time"), float(smokeTime) * 2);
+		glUniform1f(smokeShader.getUniformLocation("ParticleTex"), 0);
+		glUniform1f(smokeShader.getUniformLocation("ParticleLifetime"), 3.5f);
+		glUniform3fv(smokeShader.getUniformLocation("Gravity"), 1,
+			glm::value_ptr(glm::vec3(0.0f, 0.0f, 0.5f)));
+
+		glm::mat4 model_smoke = glm::mat4(1.0f);
+		model_smoke = glm::translate(model_smoke, bulletPosInit);
+		model_smoke = glm::rotate(model_smoke, glm::radians(bulletAngleYawInit), glm::vec3(0.0f, 1.0f, 0.0f));
+		model_smoke = glm::rotate(model_smoke, glm::radians(bulletAnglePitchInit), glm::vec3(1.0f, 0.0f, 0.0f));
+		model_smoke = glm::translate(model_smoke, bulletOffset);
+		model_smoke = glm::rotate(model_smoke, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_smoke));
+
+		glBindVertexArray(VAOParticles);
+		glDrawArrays(GL_POINTS, 0, nParticles);
+		glDisable(GL_BLEND);
+
+		smokeShader.turnOff();
+
+		//Bullet particles
+		bulletParticlesShader.turnOn();
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// Set the point size
+		if (inputManager.getActiveCamera() == PLAYER) {
+			glPointSize(30.0f);
+		}
+		if (inputManager.getActiveCamera() == SKY) {
+			glPointSize(10.0f);
+		}
+		
+		textureParticle.bind(GL_TEXTURE0);
+
+		modelLoc = bulletParticlesShader.getUniformLocation("model");
+		viewLoc = bulletParticlesShader.getUniformLocation("view");
+		projLoc = bulletParticlesShader.getUniformLocation("projection");
+		// Pass the matrices to the shader
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+		particleTime = TimeManager::Instance().GetTime() - particleStartTime;
+		glUniform1f(bulletParticlesShader.getUniformLocation("Time"), float(particleTime) * 2);
+		glUniform1f(bulletParticlesShader.getUniformLocation("ParticleTex"), 0);
+		glUniform1f(bulletParticlesShader.getUniformLocation("ParticleLifetime"), 3.5f);
+		glUniform3fv(bulletParticlesShader.getUniformLocation("Gravity"), 1,
+			glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
+
+		glm::mat4 model_particle = glm::mat4(1.0f);
+		model_particle = glm::translate(model_particle, hit_point);
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_particle));
+
+		glBindVertexArray(VAOParticles);
+		glDrawArrays(GL_POINTS, 0, nParticles);
+		glDisable(GL_BLEND);
+
+		bulletParticlesShader.turnOff();
+
+		//Destroyed enemy particles
+		explosionParticlesShader.turnOn();
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// Set the point size
+		if (inputManager.getActiveCamera() == PLAYER) {
+			glPointSize(50.0f);
+		}
+		if (inputManager.getActiveCamera() == SKY) {
+			glPointSize(30.0f);
+		}
+
+		textureParticle.bind(GL_TEXTURE0);
+
+		modelLoc = explosionParticlesShader.getUniformLocation("model");
+		viewLoc = explosionParticlesShader.getUniformLocation("view");
+		projLoc = explosionParticlesShader.getUniformLocation("projection");
+		// Pass the matrices to the shader
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+		explosionTime = TimeManager::Instance().GetTime() - explosionStartTime;
+		glUniform1f(explosionParticlesShader.getUniformLocation("Time"), float(explosionTime) * 2);
+		glUniform1f(explosionParticlesShader.getUniformLocation("ParticleTex"), 0);
+		glUniform1f(explosionParticlesShader.getUniformLocation("ParticleLifetime"), 4.0f);
+		glUniform3fv(explosionParticlesShader.getUniformLocation("Gravity"), 1,
+			glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
+
+		glm::mat4 explosion_model = glm::mat4(1.0f);
+		explosion_model = glm::translate(explosion_model, explosion_origin);
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(explosion_model));
+
+		glBindVertexArray(VAOParticles);
+		glDrawArrays(GL_POINTS, 0, nParticles);
+		glDisable(GL_BLEND);
+
+		explosionParticlesShader.turnOff();
 		
 		cubemapShader.turnOn();
 
@@ -603,6 +826,8 @@ void applicationLoop() {
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		sp.render();
 		lampShader.turnOff();*/
+
+		
 
 		glfwSwapBuffers(window);
 	}
