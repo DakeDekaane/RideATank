@@ -41,6 +41,7 @@
     <None Include="..\Shaders\lampShader.vs" />
     <None Include="..\Shaders\loadModelLighting.fs" />
     <None Include="..\Shaders\loadModelLighting.vs" />
+    <None Include="..\Shaders\loadModelLightingDirectional.fs" />
     <None Include="..\Shaders\particles.fs" />
     <None Include="..\Shaders\particles.vs" />
   </ItemGroup>

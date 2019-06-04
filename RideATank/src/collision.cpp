@@ -119,6 +119,6 @@ Direction getCollisionDirection2D(glm::vec3 model1, glm::vec3 model2, float yaw)
 			match = i;
 		}
 	}
-	std::cout << "Direccion de colision: " << match << std::endl;
+	//std::cout << "Direccion de colision: " << match << std::endl;
 	return (Direction)match;
 }

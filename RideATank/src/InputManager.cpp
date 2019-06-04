@@ -35,6 +35,10 @@ InputCodes InputManager::toApplicationKey(int key) {
 		return InputCodes::ONE;
 	case 50:
 		return InputCodes::TWO;
+	case 69:
+		return InputCodes::E;
+	case 81:
+		return InputCodes::Q;
 	}
 }
 
@@ -126,6 +130,15 @@ void InputManager::changeDay() {
 	}
 	if (keyState[InputCodes::M]) {
 		_isDay = true;
+	}
+}
+
+void InputManager::changeTankLights() {
+	if (keyState[InputCodes::Q]) {
+		tank_lights = true;
+	}
+	if (keyState[InputCodes::E]) {
+		tank_lights = false;
 	}
 }
 

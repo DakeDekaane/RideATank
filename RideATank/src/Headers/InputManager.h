@@ -172,6 +172,12 @@ public:
 
 	void changeDay();
 
+	bool getTankLights() {
+		return tank_lights;
+	}
+
+	void changeTankLights();
+
 protected:
 	const float STEP = 0.1f;
 	glm::ivec2 lastMousePos;
@@ -182,6 +188,7 @@ protected:
 	Direction direction;
 	CameraMode activeCamera = PLAYER;
 	bool _isDay = true;
+	bool tank_lights = false;
 
 };
 

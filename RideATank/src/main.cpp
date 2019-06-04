@@ -139,6 +139,25 @@ glm::vec3 building3_positions[] = {
 	{ -4.0f, 0.0f, 24.0f },
 };
 
+//Point Lights
+const int NUM_POINT_LIGHTS = 6;
+glm::vec3 pointLightPositions[] = {
+	glm::vec3(6.0f,  3.0f,  6.0f),
+	glm::vec3(12.0f,  3.0f,  12.0f),
+	glm::vec3(-16.0f, 3.0f, 0.0f),
+	glm::vec3(-16.0f, 3.0f, 12.0f),
+	glm::vec3(-28.0f, 3.0f, 0.0f),
+	glm::vec3(-28.0f, 3.0f, 12.0f),
+};
+
+//Spotlights
+const int NUM_SPOTLIGHTS = 2;
+glm::vec3 tank_light_positions[] = {
+	{ -0.6f,-0.04f,1.4f },
+	{ 0.6f,-0.04f,1.4f }
+};
+
+
 //Colliders
 AABB aabb_bullet_test;
 AABB aabb1_test;
@@ -204,7 +223,7 @@ void initParticleBuffers() {
 		v.y = cosf(theta);
 		v.z = sinf(theta) * sinf(phi);
 
-		velocity = glm::mix(0.1f, 1.5f, ((float)rand() / RAND_MAX));
+		velocity = glm::mix(0.5f, 1.5f, ((float)rand() / RAND_MAX));
 		v = glm::normalize(v) * velocity;
 
 		data[3 * i] = v.x;
@@ -314,8 +333,8 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	building3_model.loadModel("../models/buildings/building3.obj");
 	
 
-	lightingShader.initialize("../Shaders/loadModelLighting.vs", "../Shaders/loadModelLightingDirectional.fs");
-	//lampShader.initialize("../Shaders/lampShader.vs", "../Shaders/lampShader.fs");
+	lightingShader.initialize("../Shaders/loadModelLighting.vs", "../Shaders/loadModelLighting.fs");
+	lampShader.initialize("../Shaders/lampShader.vs", "../Shaders/lampShader.fs");
 	cubemapShader.initialize("../Shaders/cubemapTexture.vs", "../Shaders/cubemapTexture.fs");
 	envCubeShader.initialize("../Shaders/envRefCubemapTexture.vs", "../Shaders/envRefCubemapTexture.fs");
 	bulletParticlesShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
@@ -376,6 +395,7 @@ bool processInput(bool continueApplication) {
 	deltaTime = TimeManager::Instance().DeltaTime;
 	inputManager.do_movement(deltaTime);
 	inputManager.swapCamera();
+	inputManager.changeTankLights();
 	inputManager.changeDay();
 	glfwPollEvents();
 	return continueApplication;
@@ -412,7 +432,7 @@ void applicationLoop() {
 		else if (inputManager.getActiveCamera() == SKY) {
 			glUniform3f(viewPosLoc, skyCameraPos.x, skyCameraPos.y, skyCameraPos.z);
 		}
-		
+
 
 		// Set material properties
 		GLint matDiffuseLoc = lightingShader.getUniformLocation("materialDiff");
@@ -423,24 +443,92 @@ void applicationLoop() {
 		glUniform1f(matShineLoc, 32.0f);
 
 		// Set lights properties
-		GLint lightAmbientLoc = lightingShader.getUniformLocation("light.ambient");
-		GLint lightDiffuseLoc = lightingShader.getUniformLocation("light.diffuse");
-		GLint lightSpecularLoc = lightingShader.getUniformLocation("light.specular");
-		//GLint lightPosLoc = lightingShader.getUniformLocation("light.position");
-		GLint lightDirectionLoc = lightingShader.getUniformLocation("light.direction");
+		//Directional light
+		GLint lightAmbientLoc = lightingShader.getUniformLocation("dirLight.ambient");
+		GLint lightDiffuseLoc = lightingShader.getUniformLocation("dirLight.diffuse");
+		GLint lightSpecularLoc = lightingShader.getUniformLocation("dirLight.specular");
+		GLint lightDirectionLoc = lightingShader.getUniformLocation("dirLight.direction");
+
+		//Point Lights
+		GLint lightAmbientLocP[NUM_POINT_LIGHTS];
+		GLint lightDiffuseLocP[NUM_POINT_LIGHTS];
+		GLint lightSpecularLocP[NUM_POINT_LIGHTS];
+		GLint lightPositionLocP[NUM_POINT_LIGHTS];
+		for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+			lightAmbientLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].ambient");
+			lightDiffuseLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].diffuse");
+			lightSpecularLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].specular");
+			lightPositionLocP[i] = lightingShader.getUniformLocation("pointLights[" + std::to_string(i) + "].position");
+
+		}
+
+		//Tank spotlights
+		GLint lightAmbientLocS[NUM_SPOTLIGHTS];
+		GLint lightDiffuseLocS[NUM_SPOTLIGHTS];
+		GLint lightSpecularLocS[NUM_SPOTLIGHTS];
+		GLint lightPositionLocS[NUM_SPOTLIGHTS];
+		GLint lightDirectionLocS[NUM_SPOTLIGHTS];
+		GLint lightCutOff[NUM_SPOTLIGHTS];
+		GLint lightOuterCutOff[NUM_SPOTLIGHTS];
+		glm::mat4 spot_mat[NUM_SPOTLIGHTS];
+		glm::vec3 spot_pos[NUM_SPOTLIGHTS];
+		for (int i = 0; i < NUM_SPOTLIGHTS; i++) {
+			lightAmbientLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].ambient");
+			lightDiffuseLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].diffuse");
+			lightSpecularLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].specular");
+			lightPositionLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].position");
+			lightDirectionLocS[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].direction");
+			lightCutOff[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].cutOff");
+			lightOuterCutOff[i] = lightingShader.getUniformLocation("spotLights[" + std::to_string(i) + "].outerCutOff");
+			spot_mat[i] = glm::translate(glm::mat4(1.0f), inputManager.getCameraFPS()->Position);
+			spot_mat[i] = glm::rotate(spot_mat[i], glm::radians(-inputManager.getCameraFPS()->Yaw + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			spot_mat[i] = glm::rotate(spot_mat[i], glm::radians(-inputManager.getCameraFPS()->Pitch), glm::vec3(1.0f, 0.0f, 0.0f));
+			spot_mat[i] = glm::translate(spot_mat[i], tank_light_positions[i]);
+			spot_pos[i] = glm::vec3(spot_mat[i] * glm::vec4(0, 0, 0, 1));
+		}
+
+		
 
 		if (inputManager.isDay()) {
 			glUniform3f(lightAmbientLoc, 0.5f, 0.5f, 0.5f);
 			glUniform3f(lightDiffuseLoc, 0.8f, 0.8f, 0.8f);
 			glUniform3f(lightSpecularLoc, 1.0f, 1.0f, 1.0f);
+			for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+				glUniform3f(lightAmbientLocP[i], 0.0f, 0.0f, 0.0f);
+				glUniform3f(lightDiffuseLocP[i], 0.0f, 0.0f, 0.0f);
+				glUniform3f(lightSpecularLocP[i], 1.0f, 1.0f, 1.0f);
+				glUniform3f(lightPositionLocP[i], pointLightPositions[i].x, pointLightPositions[i].y, pointLightPositions[i].z);
+			}
 		}
 		else {
-			glUniform3f(lightAmbientLoc, 0.2f, 0.2f, 0.2f);
-			glUniform3f(lightDiffuseLoc, 0.2f, 0.2f, 0.2f);
+			glUniform3f(lightAmbientLoc, 0.1f, 0.1f, 0.1f);
+			glUniform3f(lightDiffuseLoc, 0.1f, 0.1f, 0.1f);
 			glUniform3f(lightSpecularLoc, 1.0f, 1.0f, 1.0f);
+			for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+				glUniform3f(lightAmbientLocP[i], 0.0f, 0.0f, 0.0f);
+				glUniform3f(lightDiffuseLocP[i], 0.1f, 0.1f, 0.1f);
+				glUniform3f(lightSpecularLocP[i], 1.0f, 1.0f, 1.0f);
+				glUniform3f(lightPositionLocP[i], pointLightPositions[i].x, pointLightPositions[i].y, pointLightPositions[i].z);
+			}
 		}
-		//glUniform3f(lightPosLoc, lightPos.x, lightPos.y, lightPos.z);
 		glUniform3f(lightDirectionLoc, lightDir.x, lightDir.y, lightDir.z);
+
+		for (int i = 0; i < NUM_SPOTLIGHTS; i++) {
+			if (inputManager.getTankLights()) {
+				glUniform3f(lightAmbientLocS[i], 0.0f, 0.0f, 0.0f);
+				glUniform3f(lightDiffuseLocS[i], 0.4f, 0.4f, 0.1f);
+				glUniform3f(lightSpecularLocS[i], 1.0f, 1.0f, 1.0f);
+			}
+			else {
+				glUniform3f(lightAmbientLocS[i], 0.0f, 0.0f, 0.0f);
+				glUniform3f(lightDiffuseLocS[i], 0.0f, 0.0f, 0.0f);
+				glUniform3f(lightSpecularLocS[i], 1.0f, 1.0f, 1.0f);
+			}
+			glUniform3f(lightPositionLocS[i], spot_pos[i].x, spot_pos[i].y, spot_pos[i].z );
+			glUniform3f(lightDirectionLocS[i], inputManager.getCameraFPS()->Front.x, inputManager.getCameraFPS()->Front.y, inputManager.getCameraFPS()->Front.z);
+			glUniform1f(lightCutOff[i], glm::cos(glm::radians(12.5f)));
+			glUniform1f(lightOuterCutOff[i], glm::cos(glm::radians(17.5f)));
+		}
 
 		// Create camera transformations
 		glm::mat4 view = glm::mat4(1.0f);
@@ -465,7 +553,7 @@ void applicationLoop() {
 		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
 		//Colliders
-		
+
 
 		// Draw the floor model
 		glm::mat4 model0 = glm::mat4(1.0f);
@@ -494,8 +582,8 @@ void applicationLoop() {
 				model2[i] = glm::rotate(model2[i], glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model2[i]));
 				enemy_model.render(&lightingShader);
-				aabb2_test[i].max = aabb2.max + glm::vec3(model2[i] *  glm::vec4(0, 0, 0, 1));
-				aabb2_test[i].min = aabb2.min + glm::vec3(model2[i] *  glm::vec4(0, 0, 0, 1));
+				aabb2_test[i].max = aabb2.max + glm::vec3(model2[i] * glm::vec4(0, 0, 0, 1));
+				aabb2_test[i].min = aabb2.min + glm::vec3(model2[i] * glm::vec4(0, 0, 0, 1));
 			}
 		}
 
@@ -513,9 +601,9 @@ void applicationLoop() {
 			lastTime = TimeManager::Instance().GetTime();
 			bulletPosInit = inputManager.getCameraFPS()->Position;
 			bulletAngleYawInit = -inputManager.getCameraFPS()->Yaw + 90.0f;
-			bulletAnglePitchInit = -inputManager.getCameraFPS()->Pitch; 
+			bulletAnglePitchInit = -inputManager.getCameraFPS()->Pitch;
 		}
-		
+
 		if (shot) {
 			GLfloat bullet_speed = 0.1f;
 			GLfloat position = 0.0;
@@ -526,7 +614,7 @@ void applicationLoop() {
 				model_bullet = glm::rotate(model_bullet, glm::radians(bulletAnglePitchInit), glm::vec3(1.0f, 0.0f, 0.0f));
 				model_bullet = glm::translate(model_bullet, bulletOffset);
 				model_bullet = glm::scale(model_bullet, glm::vec3(0.3f, 0.3f, 0.3f));
-				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 10 ));
+				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 10));
 				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_bullet));
 				bullet_model.render(&lightingShader);
 				aabb_bullet_test.max = aabb_bullet.max * 0.3f + glm::vec3(model_bullet *  glm::vec4(0, 0, 0, 1));
@@ -536,7 +624,7 @@ void applicationLoop() {
 				//Enemy collision
 				for (int i = 0; i < ENEMIES; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb2_test[i])) {
-						std::cout << "Bullet hit: Enemy" << std::endl;
+						//std::cout << "Bullet hit: Enemy" << std::endl;
 						bullet_collision = true;
 						shot = false;
 						enemy_alive[i] = false;
@@ -544,16 +632,15 @@ void applicationLoop() {
 						explosion_origin = aabb2_test[i].getCenter();
 						aabb2_test[i].max = { 0.0f,-2.0f,0.0f };
 						aabb2_test[i].min = { 0.0f,-2.0f,0.0f };
-						std::cout << "Explosion origin: " << explosion_origin.x << "," << explosion_origin.y << "," << explosion_origin.z << "\n";
 						particleStartTime = explosionStartTime = TimeManager::Instance().GetTime();
-						
+
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb2_test.getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 				}
 				//Building collision
 				for (int i = 0; i < BUILDING_PER_COLOR; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building1[i])) {
-						std::cout << "Bullet hit: Orange Building." << std::endl;
+						//std::cout << "Bullet hit: Orange Building." << std::endl;
 						bullet_collision = true;
 						shot = false;
 						hit_point = aabb_bullet_test.getCenter();
@@ -561,7 +648,7 @@ void applicationLoop() {
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building1[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building2[i])) {
-						std::cout << "Bullet hit: Green Building." << std::endl;
+						//std::cout << "Bullet hit: Green Building." << std::endl;
 						bullet_collision = true;
 						shot = false;
 						hit_point = aabb_bullet_test.getCenter();
@@ -569,7 +656,7 @@ void applicationLoop() {
 						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building2[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building3[i])) {
-						std::cout << "Bullet hit: Blue Building." << std::endl;
+						//std::cout << "Bullet hit: Blue Building." << std::endl;
 						bullet_collision = true;
 						shot = false;
 						hit_point = aabb_bullet_test.getCenter();
@@ -580,7 +667,7 @@ void applicationLoop() {
 				//Bounds collision
 				for (int i = 0; i < 6; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, bounds[i])) {
-						std::cout << "Bullet hit: Bounds" << std::endl;
+						//std::cout << "Bullet hit: Bounds" << std::endl;
 						bullet_collision = true;
 						shot = false;
 						hit_point = aabb_bullet_test.getCenter();
@@ -591,7 +678,7 @@ void applicationLoop() {
 
 			}
 		}
-		
+
 
 		// Draw the building model
 		glm::mat4 model4[BUILDING_PER_COLOR] = { glm::mat4(1.0f) };
@@ -601,8 +688,8 @@ void applicationLoop() {
 			model4[i] = glm::scale(model4[i], glm::vec3(2.0f, 2.0f, 2.0f));
 			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model4[i]));
 			building1_model.render(&lightingShader);
-			aabb_building1[i].max = aabb_b1.max * 2.0f + glm::vec3(model4[i] *  glm::vec4(0, 0, 0, 1));
-			aabb_building1[i].min = aabb_b1.min * 2.0f + glm::vec3(model4[i] *  glm::vec4(0, 0, 0, 1));
+			aabb_building1[i].max = aabb_b1.max * 2.0f + glm::vec3(model4[i] * glm::vec4(0, 0, 0, 1));
+			aabb_building1[i].min = aabb_b1.min * 2.0f + glm::vec3(model4[i] * glm::vec4(0, 0, 0, 1));
 		}
 
 		// Draw the building model
@@ -613,8 +700,8 @@ void applicationLoop() {
 			model5[i] = glm::scale(model5[i], glm::vec3(2.0f, 2.0f, 2.0f));
 			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model5[i]));
 			building2_model.render(&lightingShader);
-			aabb_building2[i].max = aabb_b2.max * 2.0f + glm::vec3(model5[i] *  glm::vec4(0, 0, 0, 1));
-			aabb_building2[i].min = aabb_b2.min * 2.0f + glm::vec3(model5[i] *  glm::vec4(0, 0, 0, 1));
+			aabb_building2[i].max = aabb_b2.max * 2.0f + glm::vec3(model5[i] * glm::vec4(0, 0, 0, 1));
+			aabb_building2[i].min = aabb_b2.min * 2.0f + glm::vec3(model5[i] * glm::vec4(0, 0, 0, 1));
 		}
 
 		// Draw the building model
@@ -625,10 +712,10 @@ void applicationLoop() {
 			model6[i] = glm::scale(model6[i], glm::vec3(2.0f, 2.0f, 2.0f));
 			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model6[i]));
 			building3_model.render(&lightingShader);
-			aabb_building3[i].max = aabb_b2.max * 2.0f + glm::vec3(model6[i] *  glm::vec4(0, 0, 0, 1));
-			aabb_building3[i].min = aabb_b2.min * 2.0f + glm::vec3(model6[i] *  glm::vec4(0, 0, 0, 1));
+			aabb_building3[i].max = aabb_b2.max * 2.0f + glm::vec3(model6[i] * glm::vec4(0, 0, 0, 1));
+			aabb_building3[i].min = aabb_b2.min * 2.0f + glm::vec3(model6[i] * glm::vec4(0, 0, 0, 1));
 		}
-		
+
 		lightingShader.turnOff();
 
 		//Smoke 
@@ -655,7 +742,7 @@ void applicationLoop() {
 		smokeTime = TimeManager::Instance().GetTime() - smokeStartTime;
 		glUniform1f(smokeShader.getUniformLocation("Time"), float(smokeTime) * 2);
 		glUniform1f(smokeShader.getUniformLocation("ParticleTex"), 0);
-		glUniform1f(smokeShader.getUniformLocation("ParticleLifetime"), 3.5f);
+		glUniform1f(smokeShader.getUniformLocation("ParticleLifetime"), 1.5f);
 		glUniform3fv(smokeShader.getUniformLocation("Gravity"), 1,
 			glm::value_ptr(glm::vec3(0.0f, 0.0f, 0.5f)));
 
@@ -684,7 +771,7 @@ void applicationLoop() {
 		if (inputManager.getActiveCamera() == SKY) {
 			glPointSize(10.0f);
 		}
-		
+
 		textureParticle.bind(GL_TEXTURE0);
 
 		modelLoc = bulletParticlesShader.getUniformLocation("model");
@@ -748,7 +835,33 @@ void applicationLoop() {
 		glDisable(GL_BLEND);
 
 		explosionParticlesShader.turnOff();
-		
+
+		lampShader.turnOn();
+		// Create transformations
+		modelLoc = lampShader.getUniformLocation("model");
+		viewLoc = lampShader.getUniformLocation("view");
+		projLoc = lampShader.getUniformLocation("projection");
+		// Pass the matrices to the shader
+		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+		glm::mat4 model_lamp;
+		for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
+			model_lamp = glm::translate(glm::mat4(1.0f), pointLightPositions[i]);
+			model_lamp = glm::scale(model_lamp, glm::vec3(0.2, 0.2, 0.2));
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_lamp));
+			sp.render();
+		}
+		for (int i = 0; i < NUM_SPOTLIGHTS; i++){
+			model_lamp = glm::translate(glm::mat4(1.0f), inputManager.getCameraFPS()->Position);
+			model_lamp = glm::rotate(model_lamp, glm::radians(-inputManager.getCameraFPS()->Yaw + 90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			model_lamp = glm::rotate(model_lamp, glm::radians(-inputManager.getCameraFPS()->Pitch), glm::vec3(1.0f, 0.0f, 0.0f));
+			model_lamp = glm::translate(model_lamp, tank_light_positions[i]);
+			model_lamp = glm::scale(model_lamp, glm::vec3(0.1, 0.1, 0.1));
+			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_lamp));
+			sp.render();
+		}
+		lampShader.turnOff();
+
 		cubemapShader.turnOn();
 
 		GLint oldCullFaceMode;
@@ -785,49 +898,32 @@ void applicationLoop() {
 		inputManager.setCollision(false);
 		for (int i = 0; i < ENEMIES; i++) {
 			if (testBoxBoxIntersection(aabb1_test, aabb2_test[i])) {
-				std::cout << "Model collision: Enemy" << std::endl;
+				//std::cout << "Model collision: Enemy" << std::endl;
 				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), aabb2_test[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 			}
 		}
 		//Building collision
 		for (int i = 0; i < BUILDING_PER_COLOR; i++) {
 			if (testBoxBoxIntersection(aabb1_test, aabb_building1[i])) {
-				std::cout << "Model collision: Orange Building." << std::endl;
+				//std::cout << "Model collision: Orange Building." << std::endl;
 				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), aabb_building1[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 			}
 			if (testBoxBoxIntersection(aabb1_test, aabb_building2[i])) {
-				std::cout << "Model collision: Green Building." << std::endl;
+				//std::cout << "Model collision: Green Building." << std::endl;
 				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), aabb_building2[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 			}
 			if (testBoxBoxIntersection(aabb1_test, aabb_building3[i])) {
-				std::cout << "Model collision: Blue Building." << std::endl;
+				//std::cout << "Model collision: Blue Building." << std::endl;
 				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), aabb_building3[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 			}
 		}
 		//Bounds collision
 		for (int i = 0; i < 4; i++) {
 			if (testBoxBoxIntersection(aabb1_test, bounds[i])) {
-				std::cout << "Model collision: Bounds" << std::endl;
+//				std::cout << "Model collision: Bounds" << std::endl;
 				inputManager.setCollision(true, getCollisionDirection2D(aabb1_test.getCenter(), bounds[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 			}
 		}
-
-		/*lampShader.turnOn();
-		// Create transformations
-		modelLoc = lampShader.getUniformLocation("model");
-		viewLoc = lampShader.getUniformLocation("view");
-		projLoc = lampShader.getUniformLocation("projection");
-		// Pass the matrices to the shader
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-		glm::mat4 model = glm::translate(glm::mat4(1.0f), lightPos);
-		model = glm::scale(model, glm::vec3(0.2, 0.2, 0.2));
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-		sp.render();
-		lampShader.turnOff();*/
-
-		
 
 		glfwSwapBuffers(window);
 	}
