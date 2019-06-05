@@ -65,7 +65,13 @@ public:
 	}
 
 	glm::mat4 GetViewMatrix() {
-		return glm::lookAt(this->Position, this->Position + this->Front,
+		glm::vec3 cameraOffsetBase(5.0f, 2.0f, 1.0f);
+		glm::vec3 cameraOffset;
+		cameraOffset.x = - sin(glm::radians(Yaw))*cameraOffsetBase.z - cos(glm::radians(Yaw))*cameraOffsetBase.x;
+		cameraOffset.y = cameraOffsetBase.y;
+		cameraOffset.z = cos(glm::radians(Yaw))*cameraOffsetBase.z - sin(glm::radians(Yaw))*cameraOffsetBase.x;
+	
+		return glm::lookAt(this->Position + cameraOffset, this->Position + cameraOffset  + this->Front,
 				this->Up);
 	}
 
@@ -92,10 +98,10 @@ public:
 		this->Pitch += yoffset;
 
 		if (constrainPitch) {
-			if (this->Pitch > 89.0f)
-				this->Pitch = 89.0f;
-			if (this->Pitch < -89.0f)
-				this->Pitch = -89.0f;
+			if (this->Pitch > 14.0f)
+				this->Pitch = 14.0f;
+			if (this->Pitch < -3.0f)
+				this->Pitch = -3.0f;
 		}
 
 		this->updateCameraVectors();

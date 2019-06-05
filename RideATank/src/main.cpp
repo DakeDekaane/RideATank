@@ -545,7 +545,7 @@ void applicationLoop() {
 		}
 		else {
 			glUniform3f(lightAmbientLoc, 0.05f, 0.05f, 0.05f);
-			glUniform3f(lightDiffuseLoc, 0.1f, 0.1f, 0.1f);
+			glUniform3f(lightDiffuseLoc, 0.05f, 0.05f, 0.05f);
 			glUniform3f(lightSpecularLoc, 1.0f, 1.0f, 1.0f);
 			for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
 				glUniform3f(lightAmbientLocP[i], 0.0f, 0.0f, 0.0f);
@@ -572,8 +572,8 @@ void applicationLoop() {
 			}
 			glUniform3f(lightPositionLocS[i], spot_pos[i].x, spot_pos[i].y, spot_pos[i].z );
 			glUniform3f(lightDirectionLocS[i], inputManager.getCameraFPS()->Front.x, inputManager.getCameraFPS()->Front.y, inputManager.getCameraFPS()->Front.z);
-			glUniform1f(lightCutOff[i], glm::cos(glm::radians(12.5f)));
-			glUniform1f(lightOuterCutOff[i], glm::cos(glm::radians(17.5f)));
+			glUniform1f(lightCutOff[i], glm::cos(glm::radians(20.0f)));
+			glUniform1f(lightOuterCutOff[i], glm::cos(glm::radians(30.0f)));
 			glUniform1f(lightConstantLocS[i], 1.0f);
 			glUniform1f(lightLinearLocS[i], 0.14f);
 			glUniform1f(lightQuadraticLocS[i], 0.07f);
@@ -824,9 +824,10 @@ void applicationLoop() {
 		bulletParticlesShader.turnOn();
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		float hit_distance = glm::length(hit_point - inputManager.getCameraFPS()->Position);
 		// Set the point size
 		if (inputManager.getActiveCamera() == PLAYER) {
-			glPointSize(30.0f);
+			glPointSize(150.0f / hit_distance);
 		}
 		if (inputManager.getActiveCamera() == SKY) {
 			glPointSize(10.0f);
@@ -862,12 +863,13 @@ void applicationLoop() {
 		explosionParticlesShader.turnOn();
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		float exp_distance = glm::length(explosion_origin - inputManager.getCameraFPS()->Position);
 		// Set the point size
 		if (inputManager.getActiveCamera() == PLAYER) {
-			glPointSize(50.0f);
+			glPointSize(450.0f/exp_distance);
 		}
 		if (inputManager.getActiveCamera() == SKY) {
-			glPointSize(30.0f);
+			glPointSize(50.0f);
 		}
 
 		textureParticle.bind(GL_TEXTURE0);
