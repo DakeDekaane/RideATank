@@ -18,7 +18,7 @@
 #include "Headers/Texture.h"
 
 // Camera include
-//#include "Headers/CameraFPS.h"
+#include "Headers/CameraFPS.h"
 
 #include "Headers/Model.h"
 
@@ -29,19 +29,20 @@
 #include "Headers/CubemapTexture.h"
 
 //Collisions
-//#include "Headers/collision.h"
+#include "Headers/collision.h"
 
 // OpenAL include
 #include <AL/alut.h>
 
+//Shaders
 Shader lightingShader;
 Shader lampShader;
 Shader cubemapShader;
-Shader envCubeShader;
 Shader bulletParticlesShader;
 Shader explosionParticlesShader;
 Shader smokeShader;
 
+//Models
 Model floor_model;
 Model player_model;
 Model enemy_model;
@@ -51,32 +52,37 @@ Model building3_model;
 Model bullet_model;
 Model lamp_base_model;
 
+//Textures
 Texture textureParticle(GL_TEXTURE_2D, "../Textures/explosion.png");
 Texture textureSmoke(GL_TEXTURE_2D, "../Textures/smoke.png");
 CubemapTexture* cubeMapTexture = new CubemapTexture("../Textures", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png", "sky.png");
 CubemapTexture* cubeMapTextureNight = new CubemapTexture("../Textures", "sky-night.png", "sky-night.png", "sky-night.png", "sky-night.png", "sky-night.png", "sky-night.png");
 
+//Spheres
 Sphere sp(1.5, 20, 20, MODEL_MODE::VERTEX_COLOR);
 Sphere sp2(1.5, 20, 20, MODEL_MODE::VERTEX_LIGHT_COLOR);
 
+//Array Objects
 GLuint VAO, VBO, EBO;
 
-const int BUILDING_PER_COLOR = 8;
-
+//Window
 int screenWidth;
 int screenHeight;
-
 GLFWwindow * window;
+
+//Input and Time Manager
 InputManager inputManager;
 double deltaTime;
 
+//Bullet data
 bool shot = false;
 bool bullet_collision = false;
 bool bullet_collision_enemy = false;
+glm::vec3 bulletOffset = { 0.0f, 1.0f, 1.7f };
 
+//Enemy data
 const int ENEMIES = 10;
 bool enemy_alive[ENEMIES] = { true, true, true, true, true, true, true, true, true, true, };
-
 glm::vec3 enemy_positions[] = {
 	{ 5.0f, 2.0f, 6.0f },
 	{ 15.0f, 2.0f, 6.0f },
@@ -92,13 +98,8 @@ glm::vec3 enemy_positions[] = {
 
 Position player_pos = { 0.0f, 2.0f, 0.0f };
 
-glm::vec3 skyCameraPos;
-glm::vec3 skyCameraPosOffset = { 10.0f,20.0f,10.0f };
-glm::vec3 skyCameraFront;
-glm::vec3 skyCameraUp;
-
-glm::vec3 bulletOffset = { 0.0f, 1.0f, 1.7f };
-
+//Building data
+const int BUILDING_PER_COLOR = 8;
 glm::vec3 building1_positions[] = {
 	{ -40.0f, 0.0f, -40.0f },
 	{ -12.0f, 0.0f, -40.0f },
@@ -171,8 +172,6 @@ glm::vec3 pointLightPositions[] = {
 	glm::vec3(-1.25f, 3.0f, 0.75f),
 	glm::vec3(-1.25f, 3.0f, 13.5f),
 	glm::vec3(-1.25f, 3.0f, 28.75f),
-
-
 };
 
 //Spotlights
@@ -181,7 +180,6 @@ glm::vec3 tank_light_positions[] = {
 	{ -0.6f,-0.04f,1.4f },
 	{ 0.6f,-0.04f,1.4f }
 };
-
 
 //Colliders
 AABB aabb_bullet_test;
@@ -199,11 +197,12 @@ AABB bounds[] = {
 	{ glm::vec3(-50.0f,20.0f,-50.0f) , glm::vec3(50.0f,120.0f,50.0f) },
 };
 
-// Definition for the particle system
+//Particle system
 GLuint initVel, startTime;
 GLuint VAOParticles;
 GLuint nParticles;
-
+glm::vec3 hit_point;
+glm::vec3 explosion_origin;
 double particleStartTime;
 double particleTime;
 double explosionStartTime;
@@ -220,6 +219,15 @@ void init(int width, int height, std::string strTitle, bool bFullScreen);
 void destroyWindow();
 void destroy();
 bool processInput(bool continueApplication = true);
+
+void setCollisionBullet();
+
+void setCollisionBullet() {
+	bullet_collision = true;
+	shot = false;
+	hit_point = aabb_bullet_test.getCenter();
+	particleStartTime = TimeManager::Instance().GetTime();
+}
 
 void initParticleBuffers() {
 	nParticles = 500;
@@ -362,14 +370,15 @@ void init(int width, int height, std::string strTitle, bool bFullScreen) {
 	lightingShader.initialize("../Shaders/loadModelLighting.vs", "../Shaders/loadModelLighting.fs");
 	lampShader.initialize("../Shaders/lampShader.vs", "../Shaders/lampShader.fs");
 	cubemapShader.initialize("../Shaders/cubemapTexture.vs", "../Shaders/cubemapTexture.fs");
-	envCubeShader.initialize("../Shaders/envRefCubemapTexture.vs", "../Shaders/envRefCubemapTexture.fs");
 	bulletParticlesShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
 	explosionParticlesShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
 	smokeShader.initialize("../Shaders/particles.vs", "../Shaders/particles.fs");
 
-	// The particle texture
+	//Particle texture
 	textureParticle.load();
 	initParticleBuffers();
+
+	//Cubemap
 	cubeMapTexture->Load();
 	cubeMapTextureNight->Load();
 
@@ -383,9 +392,8 @@ void destroyWindow() {
 void destroy() {
 	destroyWindow();
 	lightingShader.destroy();
-	//lampShader.destroy();
+	lampShader.destroy();
 	cubemapShader.destroy();
-	envCubeShader.destroy();
 }
 
 void reshapeCallback(GLFWwindow* Window, int widthRes, int heightRes) {
@@ -458,7 +466,8 @@ void applicationLoop() {
 				inputManager.getCameraFPS()->Position.z);
 		}
 		else if (inputManager.getActiveCamera() == SKY) {
-			glUniform3f(viewPosLoc, skyCameraPos.x, skyCameraPos.y, skyCameraPos.z);
+			glUniform3f(viewPosLoc, inputManager.getCameraFPS()->skyCameraPos.x, inputManager.getCameraFPS()->skyCameraPos.y,
+				inputManager.getCameraFPS()->skyCameraPos.z);
 		}
 
 
@@ -585,12 +594,7 @@ void applicationLoop() {
 			view = inputManager.getCameraFPS()->GetViewMatrix();
 		}
 		else if (inputManager.getActiveCamera() == SKY) {
-			inputManager.getCameraFPS()->Pitch = 0.0f;
-			skyCameraPos = inputManager.getCameraFPS()->Position + skyCameraPosOffset;
-			skyCameraFront = skyCameraPos - skyCameraPosOffset;
-			skyCameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-			//skyCameraUp = glm::cross(glm::cross(skyCameraPos, skyCameraPosOffset),-skyCameraFront);
-			view = glm::lookAt(skyCameraPos, skyCameraFront, skyCameraUp);
+			view = inputManager.getCameraFPS()->GetViewMatrixSky();
 		}
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / (float)screenHeight, 0.1f, 100.0f);
 		// Get the uniform locations
@@ -641,8 +645,7 @@ void applicationLoop() {
 		glm::vec3 bulletPosInit;
 		float bulletAnglePitchInit;
 		float bulletAngleYawInit;
-		glm::vec3 hit_point;
-		glm::vec3 explosion_origin;
+		
 
 		if (!shot) {
 			bullet_collision = false;
@@ -674,60 +677,38 @@ void applicationLoop() {
 				for (int i = 0; i < ENEMIES; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb2_test[i])) {
 						//std::cout << "Bullet hit: Enemy" << std::endl;
-						bullet_collision = true;
-						shot = false;
-						enemy_alive[i] = false;
-						hit_point = aabb_bullet_test.getCenter();
+						setCollisionBullet();
 						explosion_origin = aabb2_test[i].getCenter();
+						//Remove enemy from scene
+						enemy_alive[i] = false;
 						aabb2_test[i].max = { 0.0f,-2.0f,0.0f };
 						aabb2_test[i].min = { 0.0f,-2.0f,0.0f };
-						particleStartTime = explosionStartTime = TimeManager::Instance().GetTime();
-
-						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb2_test.getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
 					}
 				}
 				//Building collision
 				for (int i = 0; i < BUILDING_PER_COLOR; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building1[i])) {
 						//std::cout << "Bullet hit: Orange Building." << std::endl;
-						bullet_collision = true;
-						shot = false;
-						hit_point = aabb_bullet_test.getCenter();
-						particleStartTime = TimeManager::Instance().GetTime();
-						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building1[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+						setCollisionBullet();
 					}
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building2[i])) {
 						//std::cout << "Bullet hit: Green Building." << std::endl;
-						bullet_collision = true;
-						shot = false;
-						hit_point = aabb_bullet_test.getCenter();
-						particleStartTime = TimeManager::Instance().GetTime();
-						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building2[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+						setCollisionBullet();
 					}
 					if (testBoxBoxIntersection(aabb_bullet_test, aabb_building3[i])) {
 						//std::cout << "Bullet hit: Blue Building." << std::endl;
-						bullet_collision = true;
-						shot = false;
-						hit_point = aabb_bullet_test.getCenter();
-						particleStartTime = TimeManager::Instance().GetTime();
-						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), aabb_building3[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+						setCollisionBullet();
 					}
 				}
 				//Bounds collision
 				for (int i = 0; i < 6; i++) {
 					if (testBoxBoxIntersection(aabb_bullet_test, bounds[i])) {
 						//std::cout << "Bullet hit: Bounds" << std::endl;
-						bullet_collision = true;
-						shot = false;
-						hit_point = aabb_bullet_test.getCenter();
-						particleStartTime = TimeManager::Instance().GetTime();
-						//inputManager.setCollision(true, getCollisionDirection2D(aabb_bullet_test.getCenter(), bounds[i].getCenter(), -inputManager.getCameraFPS()->Yaw + 90.0f));
+						setCollisionBullet();
 					}
 				}
-
 			}
 		}
-
 
 		// Draw the building model
 		glm::mat4 model4[BUILDING_PER_COLOR] = { glm::mat4(1.0f) };
@@ -772,8 +753,7 @@ void applicationLoop() {
 			model7 = glm::translate(model7, pointLightPositions[i] - glm::vec3(0.0f, 2.75f, 0.0f));
 			model7 = glm::scale(model7, glm::vec3(1.0f, 0.80f, 1.0f));
 			glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model7));
-			lamp_base_model.render(&lightingShader);
-			
+			lamp_base_model.render(&lightingShader);		
 		}
 
 		lightingShader.turnOff();
@@ -803,8 +783,7 @@ void applicationLoop() {
 		glUniform1f(smokeShader.getUniformLocation("Time"), float(smokeTime) * 2);
 		glUniform1f(smokeShader.getUniformLocation("ParticleTex"), 0);
 		glUniform1f(smokeShader.getUniformLocation("ParticleLifetime"), 1.5f);
-		glUniform3fv(smokeShader.getUniformLocation("Gravity"), 1,
-			glm::value_ptr(glm::vec3(0.0f, 0.0f, 0.5f)));
+		glUniform3fv(smokeShader.getUniformLocation("Gravity"), 1, glm::value_ptr(glm::vec3(0.0f, 0.0f, 0.5f)));
 
 		glm::mat4 model_smoke = glm::mat4(1.0f);
 		model_smoke = glm::translate(model_smoke, bulletPosInit);
@@ -846,8 +825,7 @@ void applicationLoop() {
 		glUniform1f(bulletParticlesShader.getUniformLocation("Time"), float(particleTime) * 2);
 		glUniform1f(bulletParticlesShader.getUniformLocation("ParticleTex"), 0);
 		glUniform1f(bulletParticlesShader.getUniformLocation("ParticleLifetime"), 3.5f);
-		glUniform3fv(bulletParticlesShader.getUniformLocation("Gravity"), 1,
-			glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
+		glUniform3fv(bulletParticlesShader.getUniformLocation("Gravity"), 1, glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
 
 		glm::mat4 model_particle = glm::mat4(1.0f);
 		model_particle = glm::translate(model_particle, hit_point);
@@ -885,8 +863,7 @@ void applicationLoop() {
 		glUniform1f(explosionParticlesShader.getUniformLocation("Time"), float(explosionTime) * 2);
 		glUniform1f(explosionParticlesShader.getUniformLocation("ParticleTex"), 0);
 		glUniform1f(explosionParticlesShader.getUniformLocation("ParticleLifetime"), 4.0f);
-		glUniform3fv(explosionParticlesShader.getUniformLocation("Gravity"), 1,
-			glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
+		glUniform3fv(explosionParticlesShader.getUniformLocation("Gravity"), 1, glm::value_ptr(glm::vec3(0.0f, -1.0f, 0.0f)));
 
 		glm::mat4 explosion_model = glm::mat4(1.0f);
 		explosion_model = glm::translate(explosion_model, explosion_origin);
@@ -1002,3 +979,4 @@ int main(int argc, char ** argv) {
 	destroy();
 	return 1;
 }
+

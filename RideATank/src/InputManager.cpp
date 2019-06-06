@@ -69,13 +69,9 @@ void InputManager::keyPressed(InputCodes code, float deltaTime, State state) {
 }
 
 void InputManager::mouseMoved(float mouseX, float mouseY) {
-	//if (mouseButtomState[MouseButtonIndex::LEFT]) {
-		float xoffset = mouseX - lastMousePos.x;
-		float yoffset = lastMousePos.y - mouseY;
-
-		cameraFPS->ProcessMouseMovement(xoffset, yoffset, true);
-	//}
-
+	float xoffset = mouseX - lastMousePos.x;
+	float yoffset = lastMousePos.y - mouseY;
+	cameraFPS->ProcessMouseMovement(xoffset, yoffset, true);
 	lastMousePos = glm::vec2(mouseX, mouseY);
 }
 
@@ -106,10 +102,6 @@ void InputManager::do_movement(float deltaTime) {
 		cameraFPS->ProcessKeyboard(C_FORWARD, deltaTime);
 	if (keyState[InputCodes::S] || (collision && direction != COLLISION_BACK))
 		cameraFPS->ProcessKeyboard(C_BACKWARD, deltaTime);
-	if (keyState[InputCodes::A] || (collision && direction != COLLISION_LEFT))
-		cameraFPS->ProcessKeyboard(C_LEFT, deltaTime);
-	if (keyState[InputCodes::D] || (collision && direction != COLLISION_RIGHT))
-		cameraFPS->ProcessKeyboard(C_RIGHT, deltaTime);
 }
 
 void InputManager::swapCamera() {
@@ -121,7 +113,6 @@ void InputManager::swapCamera() {
 		activeCamera = SKY;
 		std::cout << "Camara area seleccionada" << std::endl;
 	}
-
 }
 
 void InputManager::changeDay() {

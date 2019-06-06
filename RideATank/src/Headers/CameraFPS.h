@@ -33,6 +33,13 @@ public:
 	glm::vec3 Up;
 	glm::vec3 Right;
 	glm::vec3 WorldUp;
+
+	//Sky Camera
+	glm::vec3 skyCameraPos;
+	glm::vec3 skyCameraPosOffset = { 10.0f, 20.0f, 10.0f };
+	glm::vec3 skyCameraFront;
+	glm::vec3 skyCameraUp;
+
 	// Eular Angles
 	float Yaw;
 	float Pitch;
@@ -42,26 +49,26 @@ public:
 	float Zoom;
 
 	// Constructor with vectors
-	CameraFPS(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up =
-			glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) :
+	CameraFPS(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), 
+		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) :
 			Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(
 					SENSITIVTY), Zoom(ZOOM) {
-		this->Position = position;
-		this->WorldUp = up;
-		this->Yaw = yaw;
-		this->Pitch = pitch;
-		this->updateCameraVectors();
+		Position = position;
+		WorldUp = up;
+		Yaw = yaw;
+		Pitch = pitch;
+		updateCameraVectors();
 	}
 	// Constructor with scalar values
 	CameraFPS(float posX, float posY, float posZ, float upX, float upY,
 			float upZ, float yaw, float pitch) :
 			Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(
 					SENSITIVTY), Zoom(ZOOM) {
-		this->Position = glm::vec3(posX, posY, posZ);
-		this->WorldUp = glm::vec3(upX, upY, upZ);
-		this->Yaw = yaw;
-		this->Pitch = pitch;
-		this->updateCameraVectors();
+		Position = glm::vec3(posX, posY, posZ);
+		WorldUp = glm::vec3(upX, upY, upZ);
+		Yaw = yaw;
+		Pitch = pitch;
+		updateCameraVectors();
 	}
 
 	glm::mat4 GetViewMatrix() {
@@ -70,51 +77,53 @@ public:
 		cameraOffset.x = - sin(glm::radians(Yaw))*cameraOffsetBase.z - cos(glm::radians(Yaw))*cameraOffsetBase.x;
 		cameraOffset.y = cameraOffsetBase.y;
 		cameraOffset.z = cos(glm::radians(Yaw))*cameraOffsetBase.z - sin(glm::radians(Yaw))*cameraOffsetBase.x;
-	
-		return glm::lookAt(this->Position + cameraOffset, this->Position + cameraOffset  + this->Front,
-				this->Up);
+		return glm::lookAt(Position + cameraOffset, Position + cameraOffset + Front, Up);
+	}
+
+	glm::mat4 GetViewMatrixSky() {
+		Pitch = 0.0f;
+		skyCameraPos = Position + skyCameraPosOffset;
+		skyCameraFront = skyCameraPos - skyCameraPosOffset;
+		skyCameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+		return glm::lookAt(skyCameraPos, skyCameraFront, skyCameraUp);
 	}
 
 	void ProcessKeyboard(Camera_Movement direction, float deltaTime) {
-		float velocity = this->MovementSpeed * deltaTime;
-		float y0 = this->Position.y;
+		float velocity = MovementSpeed * deltaTime;
+		float y0 = Position.y;
 		if (direction == C_FORWARD)
-			this->Position += this->Front * velocity;
+			Position += Front * velocity;
 		if (direction == C_BACKWARD)
-			this->Position -= this->Front * velocity;
+			Position -= Front * velocity;
 		if (direction == C_LEFT)
-			this->Position -= this->Right * velocity;
+			Position -= Right * velocity;
 		if (direction == C_RIGHT)
-			this->Position += this->Right * velocity;
-		this->Position.y = y0;
+			Position += Right * velocity;
+		Position.y = y0;
 	}
 
-	void ProcessMouseMovement(float xoffset, float yoffset,
-			GLboolean constrainPitch = true) {
-		xoffset *= this->MouseSensitivity;
-		yoffset *= this->MouseSensitivity;
-
-		this->Yaw += xoffset;
-		this->Pitch += yoffset;
-
+	void ProcessMouseMovement(float xoffset, float yoffset,	GLboolean constrainPitch = true) {
+		xoffset *= MouseSensitivity;
+		yoffset *= MouseSensitivity;
+		Yaw += xoffset;
+		Pitch += yoffset;
 		if (constrainPitch) {
-			if (this->Pitch > 14.0f)
-				this->Pitch = 14.0f;
-			if (this->Pitch < -3.0f)
-				this->Pitch = -3.0f;
+			if (Pitch > 14.0f)
+				Pitch = 14.0f;
+			if (Pitch < -3.0f)
+				Pitch = -3.0f;
 		}
-
-		this->updateCameraVectors();
+		updateCameraVectors();
 	}
 
 private:
 	void updateCameraVectors() {
 		glm::vec3 front;
-		front.x = cos(glm::radians(this->Yaw)) * cos(glm::radians(this->Pitch));
-		front.y = sin(glm::radians(this->Pitch));
-		front.z = sin(glm::radians(this->Yaw)) * cos(glm::radians(this->Pitch));
-		this->Front = glm::normalize(front);
-		this->Right = glm::normalize(glm::cross(this->Front, this->WorldUp));
-		this->Up = glm::normalize(glm::cross(this->Right, this->Front));
+		front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+		front.y = sin(glm::radians(Pitch));
+		front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+		Front = glm::normalize(front);
+		Right = glm::normalize(glm::cross(Front, WorldUp));
+		Up = glm::normalize(glm::cross(Right, Front));
 	}
 };

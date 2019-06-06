@@ -1,5 +1,5 @@
 /*
-* collision.h
+* collision.cpp
 *
 *  Created on: 13/10/2016
 *      Author: rey
