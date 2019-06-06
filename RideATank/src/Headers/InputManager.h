@@ -111,7 +111,7 @@ public:
 			mouseButtomState[i] = false;
 		for (int i = 0; i < 1024; i++)
 			keyState[i] = false;
-		cameraFPS = new CameraFPS(glm::vec3(5.0, 2.0, 5.0));
+		cameraFPS = new CameraFPS(glm::vec3(-22.0, 2.0, -22.0));
 	}
 
 	~InputManager() {

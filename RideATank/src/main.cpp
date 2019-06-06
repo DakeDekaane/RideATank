@@ -666,7 +666,7 @@ void applicationLoop() {
 				model_bullet = glm::rotate(model_bullet, glm::radians(bulletAnglePitchInit), glm::vec3(1.0f, 0.0f, 0.0f));
 				model_bullet = glm::translate(model_bullet, bulletOffset);
 				model_bullet = glm::scale(model_bullet, glm::vec3(0.3f, 0.3f, 0.3f));
-				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 15));
+				model_bullet = glm::translate(model_bullet, glm::vec3(0.0f, 0.0f, timeValue * 20));
 				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model_bullet));
 				bullet_model.render(&lightingShader);
 				aabb_bullet_test.max = aabb_bullet.max * 0.3f + glm::vec3(model_bullet *  glm::vec4(0, 0, 0, 1));
@@ -681,6 +681,7 @@ void applicationLoop() {
 						explosion_origin = aabb2_test[i].getCenter();
 						//Remove enemy from scene
 						enemy_alive[i] = false;
+						explosionStartTime = TimeManager::Instance().GetTime();
 						aabb2_test[i].max = { 0.0f,-2.0f,0.0f };
 						aabb2_test[i].min = { 0.0f,-2.0f,0.0f };
 					}
